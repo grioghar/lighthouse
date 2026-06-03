@@ -40,13 +40,13 @@ var _ = Describe("notifications", func() {
 				Expect(err).NotTo(HaveOccurred())
 				data := notifications.GetTemplateData(command)
 				title := data.Title
-				Expect(title).To(Equal("Watchtower updates on test.host"))
+				Expect(title).To(Equal("Lighthouse updates on test.host"))
 			})
 		})
 		When("no hostname can be resolved", func() {
 			It("should use the default simple title", func() {
 				title := notifications.GetTitle("", "")
-				Expect(title).To(Equal("Watchtower updates"))
+				Expect(title).To(Equal("Lighthouse updates"))
 			})
 		})
 		When("title tag is set", func() {
@@ -148,7 +148,7 @@ var _ = Describe("notifications", func() {
 			color := notifications.ColorInt
 			username := "containrrrbot"
 			iconURL := "https://containrrr.dev/watchtower-sq180.png"
-			expected := fmt.Sprintf("discord://%s@%s?color=0x%x&colordebug=0x0&colorerror=0x0&colorinfo=0x0&colorwarn=0x0&username=watchtower", token, channel, color)
+			expected := fmt.Sprintf("discord://%s@%s?color=0x%x&colordebug=0x0&colorerror=0x0&colorinfo=0x0&colorwarn=0x0&username=lighthouse", token, channel, color)
 			buildArgs := func(url string) []string {
 				return []string{
 					"--notifications",
@@ -353,7 +353,7 @@ var _ = Describe("notifications", func() {
 })
 
 func buildExpectedURL(username string, password string, host string, port int, from string, to string, auth string) string {
-	var template = "smtp://%s:%s@%s:%d/?auth=%s&fromaddress=%s&fromname=Watchtower&subject=&toaddresses=%s"
+	var template = "smtp://%s:%s@%s:%d/?auth=%s&fromaddress=%s&fromname=Lighthouse&subject=&toaddresses=%s"
 	return fmt.Sprintf(template,
 		url.QueryEscape(username),
 		url.QueryEscape(password),

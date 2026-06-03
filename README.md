@@ -1,46 +1,53 @@
 <div align="center">
 
-  ### ⚠️ This project is no longer maintained
-  See https://github.com/containrrr/watchtower/discussions/2135 for details.
+  <img src="./logo.png" width="240" alt="Lighthouse logo" />
 
-  ---
-  
-  <img src="./logo.png" width="450" />
-  
-  # Watchtower
-  
+  # Lighthouse
+
   A process for automating Docker container base image updates.
   <br/><br/>
-  
-  [![Circle CI](https://circleci.com/gh/containrrr/watchtower.svg?style=shield)](https://circleci.com/gh/containrrr/watchtower)
-  [![codecov](https://codecov.io/gh/containrrr/watchtower/branch/main/graph/badge.svg)](https://codecov.io/gh/containrrr/watchtower)
-  [![GoDoc](https://godoc.org/github.com/containrrr/watchtower?status.svg)](https://godoc.org/github.com/containrrr/watchtower)
-  [![Go Report Card](https://goreportcard.com/badge/github.com/containrrr/watchtower)](https://goreportcard.com/report/github.com/containrrr/watchtower)
-  [![latest version](https://img.shields.io/github/tag/containrrr/watchtower.svg)](https://github.com/containrrr/watchtower/releases)
-  [![Apache-2.0 License](https://img.shields.io/github/license/containrrr/watchtower.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-  [![Codacy Badge](https://app.codacy.com/project/badge/Grade/1c48cfb7646d4009aa8c6f71287670b8)](https://www.codacy.com/gh/containrrr/watchtower/dashboard?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=containrrr/watchtower&amp;utm_campaign=Badge_Grade)
-  [![All Contributors](https://img.shields.io/github/all-contributors/containrrr/watchtower)](#contributors)
-  [![Pulls from DockerHub](https://img.shields.io/docker/pulls/containrrr/watchtower.svg)](https://hub.docker.com/r/containrrr/watchtower)
+
+  [![Apache-2.0 License](https://img.shields.io/github/license/grioghar/lighthouse.svg)](https://www.apache.org/licenses/LICENSE-2.0)
+  [![latest version](https://img.shields.io/github/tag/grioghar/lighthouse.svg)](https://github.com/grioghar/lighthouse/releases)
+  [![Go Report Card](https://goreportcard.com/badge/github.com/grioghar/lighthouse)](https://goreportcard.com/report/github.com/grioghar/lighthouse)
 
 </div>
 
+> **Lighthouse is a maintained fork of [containrrr/watchtower](https://github.com/containrrr/watchtower)**, which entered
+> "no longer maintained" status upstream. Lighthouse carries that work forward with
+> ongoing maintenance and security hardening. It stays **drop-in compatible**: existing
+> `WATCHTOWER_*` environment variables and `com.centurylinklabs.watchtower.*` container
+> labels continue to work, alongside the new `LIGHTHOUSE_*` variables and `lighthouse.*`
+> labels. See [NOTICE.md](NOTICE.md) for attribution and licensing.
+
 ## Quick Start
 
-With watchtower you can update the running version of your containerized app simply by pushing a new image to the Docker Hub or your own image registry. 
+With Lighthouse you can update the running version of your containerized app simply by pushing a new image to the Docker Hub or your own image registry.
 
-Watchtower will pull down your new image, gracefully shut down your existing container and restart it with the same options that were used when it was deployed initially. Run the watchtower container with the following command:
+Lighthouse will pull down your new image, gracefully shut down your existing container and restart it with the same options that were used when it was deployed initially. Run the Lighthouse container with the following command:
 
 ```
 $ docker run --detach \
-    --name watchtower \
+    --name lighthouse \
     --volume /var/run/docker.sock:/var/run/docker.sock \
-    containrrr/watchtower
+    grioghar/lighthouse
 ```
 
-Watchtower is intended to be used in homelabs, media centers, local dev environments, and similar. We do **not** recommend using Watchtower in a commercial or production environment. If that is you, you should be looking into using Kubernetes. If that feels like too big a step for you, please look into solutions like [MicroK8s](https://microk8s.io/) and [k3s](https://k3s.io/) that take away a lot of the toil of running a Kubernetes cluster. 
+Lighthouse is intended to be used in homelabs, media centers, local dev environments, and similar. We do **not** recommend using Lighthouse in a commercial or production environment. If that is you, you should be looking into using Kubernetes. If that feels like too big a step for you, please look into solutions like [MicroK8s](https://microk8s.io/) and [k3s](https://k3s.io/) that take away a lot of the toil of running a Kubernetes cluster.
+
+### Migrating from Watchtower
+
+Lighthouse is drop-in compatible with Watchtower. You can keep your existing
+`WATCHTOWER_*` environment variables and `com.centurylinklabs.watchtower.*`
+labels — they are still honoured. New deployments can use the `LIGHTHOUSE_*`
+variables and `lighthouse.*` labels instead; when both are present, the
+`LIGHTHOUSE_*` / `lighthouse.*` form takes precedence.
 
 ## Documentation
-The full documentation is available at https://containrrr.dev/watchtower.
+
+The documentation in the [docs/](docs) directory is inherited from the upstream
+Watchtower project and is being updated for Lighthouse. Where the docs still say
+"watchtower", the Lighthouse-compatible names described above apply.
 
 ## Contributors
 
@@ -182,3 +189,16 @@ Thanks goes to these wonderful people ([emoji key](https://allcontributors.org/d
 <!-- ALL-CONTRIBUTORS-LIST:END -->
 
 This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
+
+The contributors listed above contributed to the upstream
+[Watchtower](https://github.com/containrrr/watchtower) project, on which
+Lighthouse is based. Our thanks to all of them.
+
+## Credits & License
+
+Lighthouse is a fork of [containrrr/watchtower](https://github.com/containrrr/watchtower)
+by the Watchtower contributors and CenturyLink Labs.
+
+Lighthouse, like Watchtower, is licensed under the **Apache License, Version 2.0**.
+The full license text is in [LICENSE.md](LICENSE.md), and attribution details are
+in [NOTICE.md](NOTICE.md).

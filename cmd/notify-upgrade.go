@@ -1,4 +1,4 @@
-// Package cmd contains the watchtower (sub-)commands
+// Package cmd contains the lighthouse (sub-)commands
 package cmd
 
 import (
@@ -9,15 +9,15 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/containrrr/watchtower/internal/flags"
-	"github.com/containrrr/watchtower/pkg/container"
-	"github.com/containrrr/watchtower/pkg/notifications"
+	"github.com/grioghar/lighthouse/internal/flags"
+	"github.com/grioghar/lighthouse/pkg/container"
+	"github.com/grioghar/lighthouse/pkg/notifications"
 	"github.com/spf13/cobra"
 )
 
 var notifyUpgradeCommand = NewNotifyUpgradeCommand()
 
-// NewNotifyUpgradeCommand creates the notify upgrade command for watchtower
+// NewNotifyUpgradeCommand creates the notify upgrade command for lighthouse
 func NewNotifyUpgradeCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "notify-upgrade",
@@ -41,7 +41,7 @@ func runNotifyUpgradeE(cmd *cobra.Command, _ []string) error {
 
 	logf("Found notification configurations for: %v", strings.Join(notifier.GetNames(), ", "))
 
-	outFile, err := os.CreateTemp("/", "watchtower-notif-urls-*")
+	outFile, err := os.CreateTemp("/", "lighthouse-notif-urls-*")
 	if err != nil {
 		return fmt.Errorf("failed to create output file: %v", err)
 	}
@@ -71,7 +71,7 @@ func runNotifyUpgradeE(cmd *cobra.Command, _ []string) error {
 		containerID = cid.ShortID()
 	}
 	logf("To get the environment file, use:")
-	logf("cp %v:%v ./watchtower-notifications.env", containerID, outFile.Name())
+	logf("cp %v:%v ./lighthouse-notifications.env", containerID, outFile.Name())
 	logf("")
 	logf("Note: This file will be removed in 5 minutes or when this container is stopped!")
 

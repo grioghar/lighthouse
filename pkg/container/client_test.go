@@ -4,10 +4,10 @@ import (
 	"github.com/docker/docker/api/types/network"
 	"time"
 
-	"github.com/containrrr/watchtower/internal/util"
-	"github.com/containrrr/watchtower/pkg/container/mocks"
-	"github.com/containrrr/watchtower/pkg/filters"
-	t "github.com/containrrr/watchtower/pkg/types"
+	"github.com/grioghar/lighthouse/internal/util"
+	"github.com/grioghar/lighthouse/pkg/container/mocks"
+	"github.com/grioghar/lighthouse/pkg/filters"
+	t "github.com/grioghar/lighthouse/pkg/types"
 
 	"github.com/docker/docker/api/types"
 	"github.com/docker/docker/api/types/backend"

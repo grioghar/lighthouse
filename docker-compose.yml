@@ -1,8 +1,8 @@
 version: '3.7'
 
 services:
-  watchtower:
-    container_name: watchtower
+  lighthouse:
+    container_name: lighthouse
     build:
       context: ./
       dockerfile: dockerfiles/Dockerfile.dev-self-contained
@@ -35,7 +35,7 @@ services:
   child:
     image: nginx:alpine
     labels:
-      com.centurylinklabs.watchtower.depends-on: parent
+      lighthouse.depends-on: parent
     container_name: child
 
 volumes:

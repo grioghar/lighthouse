@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	ty "github.com/containrrr/watchtower/pkg/types"
+	ty "github.com/grioghar/lighthouse/pkg/types"
 	log "github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
@@ -105,7 +105,7 @@ func GetTitle(hostname string, tag string) string {
 		tb.WriteRune(' ')
 	}
 
-	tb.WriteString("Watchtower updates")
+	tb.WriteString("Lighthouse updates")
 
 	if hostname != "" {
 		tb.WriteString(" on ")

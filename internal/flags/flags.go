@@ -84,7 +84,7 @@ func RegisterSystemFlags(rootCmd *cobra.Command) {
 		"label-enable",
 		"e",
 		envBool("WATCHTOWER_LABEL_ENABLE"),
-		"Watch containers where the com.centurylinklabs.watchtower.enable label is true")
+		"Watch containers where the lighthouse.enable (or legacy com.centurylinklabs.watchtower.enable) label is true")
 
 	flags.StringSliceP(
 		"disable-containers",
@@ -96,7 +96,7 @@ func RegisterSystemFlags(rootCmd *cobra.Command) {
 	flags.StringP(
 		"log-format",
 		"l",
-		viper.GetString("WATCHTOWER_LOG_FORMAT"),
+		envString("WATCHTOWER_LOG_FORMAT"),
 		"Sets what logging format to use for console output. Possible values: Auto, LogFmt, Pretty, JSON")
 
 	flags.BoolP(
@@ -157,12 +157,12 @@ func RegisterSystemFlags(rootCmd *cobra.Command) {
 		"http-api-update",
 		"",
 		envBool("WATCHTOWER_HTTP_API_UPDATE"),
-		"Runs Watchtower in HTTP API mode, so that image updates must to be triggered by a request")
+		"Runs Lighthouse in HTTP API mode, so that image updates must to be triggered by a request")
 	flags.BoolP(
 		"http-api-metrics",
 		"",
 		envBool("WATCHTOWER_HTTP_API_METRICS"),
-		"Runs Watchtower with the Prometheus metrics API enabled")
+		"Runs Lighthouse with the Prometheus metrics API enabled")
 
 	flags.StringP(
 		"http-api-token",
@@ -187,7 +187,7 @@ func RegisterSystemFlags(rootCmd *cobra.Command) {
 		"scope",
 		"",
 		envString("WATCHTOWER_SCOPE"),
-		"Defines a monitoring scope for the Watchtower instance.")
+		"Defines a monitoring scope for the Lighthouse instance.")
 
 	flags.StringP(
 		"porcelain",
@@ -391,28 +391,42 @@ Should only be used for testing.`)
 		"Write notification logs to stdout instead of logging (to stderr)")
 }
 
-func envString(key string) string {
+// bindEnvWithAlias binds the given viper key to its environment variable. For
+// keys using the legacy WATCHTOWER_ prefix it also binds the equivalent
+// LIGHTHOUSE_ variable and gives it precedence, so existing watchtower
+// configurations keep working while users migrate to LIGHTHOUSE_* (Lighthouse
+// is a fork of containrrr/watchtower).
+func bindEnvWithAlias(key string) {
+	if lighthouseKey, ok := strings.CutPrefix(key, "WATCHTOWER_"); ok {
+		// The first env var that is set wins, so LIGHTHOUSE_* takes precedence.
+		viper.MustBindEnv(key, "LIGHTHOUSE_"+lighthouseKey, key)
+		return
+	}
 	viper.MustBindEnv(key)
+}
+
+func envString(key string) string {
+	bindEnvWithAlias(key)
 	return viper.GetString(key)
 }
 
 func envStringSlice(key string) []string {
-	viper.MustBindEnv(key)
+	bindEnvWithAlias(key)
 	return viper.GetStringSlice(key)
 }
 
 func envInt(key string) int {
-	viper.MustBindEnv(key)
+	bindEnvWithAlias(key)
 	return viper.GetInt(key)
 }
 
 func envBool(key string) bool {
-	viper.MustBindEnv(key)
+	bindEnvWithAlias(key)
 	return viper.GetBool(key)
 }
 
 func envDuration(key string) time.Duration {
-	viper.MustBindEnv(key)
+	bindEnvWithAlias(key)
 	return viper.GetDuration(key)
 }
 
@@ -427,7 +441,7 @@ func SetDefaults() {
 	viper.SetDefault("WATCHTOWER_NOTIFICATIONS_LEVEL", "info")
 	viper.SetDefault("WATCHTOWER_NOTIFICATION_EMAIL_SERVER_PORT", 25)
 	viper.SetDefault("WATCHTOWER_NOTIFICATION_EMAIL_SUBJECTTAG", "")
-	viper.SetDefault("WATCHTOWER_NOTIFICATION_SLACK_IDENTIFIER", "watchtower")
+	viper.SetDefault("WATCHTOWER_NOTIFICATION_SLACK_IDENTIFIER", "lighthouse")
 	viper.SetDefault("WATCHTOWER_LOG_LEVEL", "info")
 	viper.SetDefault("WATCHTOWER_LOG_FORMAT", "auto")
 }

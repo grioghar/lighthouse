@@ -9,8 +9,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/containrrr/watchtower/pkg/registry/helpers"
-	"github.com/containrrr/watchtower/pkg/types"
+	"github.com/grioghar/lighthouse/pkg/registry/helpers"
+	"github.com/grioghar/lighthouse/pkg/types"
 	ref "github.com/distribution/reference"
 	"github.com/sirupsen/logrus"
 )
@@ -68,7 +68,7 @@ func GetChallengeRequest(URL url.URL) (*http.Request, error) {
 		return nil, err
 	}
 	req.Header.Set("Accept", "*/*")
-	req.Header.Set("User-Agent", "Watchtower (Docker)")
+	req.Header.Set("User-Agent", "Lighthouse (Docker)")
 	return req, nil
 }
 

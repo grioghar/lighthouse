@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containrrr/watchtower/internal/actions/mocks"
-	"github.com/containrrr/watchtower/pkg/registry/auth"
+	"github.com/grioghar/lighthouse/internal/actions/mocks"
+	"github.com/grioghar/lighthouse/pkg/registry/auth"
 
-	wtTypes "github.com/containrrr/watchtower/pkg/types"
+	wtTypes "github.com/grioghar/lighthouse/pkg/types"
 	ref "github.com/distribution/reference"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"

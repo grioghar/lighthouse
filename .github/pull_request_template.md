@@ -1,6 +1,6 @@
 <!--
 
-Thank you for contributing to the watchtower project! 🙏
+Thank you for contributing to the lighthouse project! 🙏
 
 We truly appreciate all the contributions we get from the community.
 

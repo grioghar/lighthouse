@@ -3,12 +3,12 @@ package actions
 import (
 	"errors"
 
-	"github.com/containrrr/watchtower/internal/util"
-	"github.com/containrrr/watchtower/pkg/container"
-	"github.com/containrrr/watchtower/pkg/lifecycle"
-	"github.com/containrrr/watchtower/pkg/session"
-	"github.com/containrrr/watchtower/pkg/sorter"
-	"github.com/containrrr/watchtower/pkg/types"
+	"github.com/grioghar/lighthouse/internal/util"
+	"github.com/grioghar/lighthouse/pkg/container"
+	"github.com/grioghar/lighthouse/pkg/lifecycle"
+	"github.com/grioghar/lighthouse/pkg/session"
+	"github.com/grioghar/lighthouse/pkg/sorter"
+	"github.com/grioghar/lighthouse/pkg/types"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -137,7 +137,7 @@ func stopContainersInReversedOrder(containers []types.Container, client containe
 
 func stopStaleContainer(container types.Container, client container.Client, params types.UpdateParams) error {
 	if container.IsWatchtower() {
-		log.Debugf("This is the watchtower container %s", container.Name())
+		log.Debugf("This is the lighthouse container %s", container.Name())
 		return nil
 	}
 
@@ -209,7 +209,7 @@ func cleanupImages(client container.Client, imageIDs map[types.ImageID]bool) {
 }
 
 func restartStaleContainer(container types.Container, client container.Client, params types.UpdateParams) error {
-	// Since we can't shutdown a watchtower container immediately, we need to
+	// Since we can't shutdown a lighthouse container immediately, we need to
 	// start the new one while the old one is still running. This prevents us
 	// from re-using the same container name so we first rename the current
 	// instance so that the new one can adopt the old name.

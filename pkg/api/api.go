@@ -62,7 +62,7 @@ func (api *API) RegisterHandler(path string, handler http.Handler) {
 func (api *API) Start(block bool) error {
 
 	if !api.hasHandlers {
-		log.Debug("Watchtower HTTP API skipped.")
+		log.Debug("Lighthouse HTTP API skipped.")
 		return nil
 	}
 

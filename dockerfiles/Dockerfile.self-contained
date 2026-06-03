@@ -5,7 +5,7 @@
 FROM golang:alpine as builder
 
 # use version (for example "v0.3.3") or "main"
-ARG WATCHTOWER_VERSION=main
+ARG LIGHTHOUSE_VERSION=main
 
 RUN apk add --no-cache \
     alpine-sdk \
@@ -13,28 +13,31 @@ RUN apk add --no-cache \
     git \
     tzdata
 
-RUN git clone --branch "${WATCHTOWER_VERSION}" https://github.com/containrrr/watchtower.git
+RUN git clone --branch "${LIGHTHOUSE_VERSION}" https://github.com/grioghar/lighthouse.git
 
 RUN \
-  cd watchtower && \
+  cd lighthouse && \
   \
-  GO111MODULE=on CGO_ENABLED=0 GOOS=linux go build -a -ldflags "-extldflags '-static' -X github.com/containrrr/watchtower/internal/meta.Version=$(git describe --tags)" . && \
+  GO111MODULE=on CGO_ENABLED=0 GOOS=linux go build -a -o lighthouse -ldflags "-extldflags '-static' -X github.com/grioghar/lighthouse/internal/meta.Version=$(git describe --tags)" . && \
   GO111MODULE=on go test ./... -v
 
 
 #
-# watchtower
+# lighthouse
 #
 
 FROM scratch
 
+# Canonical lighthouse identity label, plus the legacy watchtower label so
+# existing tooling that detects the updater container keeps working.
+LABEL "lighthouse"="true"
 LABEL "com.centurylinklabs.watchtower"="true"
 
 # copy files from other container
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=builder /go/watchtower/watchtower /watchtower
+COPY --from=builder /go/lighthouse/lighthouse /lighthouse
 
-HEALTHCHECK CMD [ "/watchtower", "--health-check"]
+HEALTHCHECK CMD [ "/lighthouse", "--health-check"]
 
-ENTRYPOINT ["/watchtower"]
+ENTRYPOINT ["/lighthouse"]

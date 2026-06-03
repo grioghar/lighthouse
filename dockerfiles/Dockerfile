@@ -5,6 +5,9 @@ RUN apk add --no-cache \
     tzdata
 
 FROM scratch
+# Canonical lighthouse identity label, plus the legacy watchtower label so
+# existing tooling that detects the updater container keeps working.
+LABEL "lighthouse"="true"
 LABEL "com.centurylinklabs.watchtower"="true"
 
 COPY --from=alpine \
@@ -16,8 +19,8 @@ COPY --from=alpine \
 
 EXPOSE 8080
 
-COPY watchtower /
+COPY lighthouse /
 
-HEALTHCHECK CMD [ "/watchtower", "--health-check"]
+HEALTHCHECK CMD [ "/lighthouse", "--health-check"]
 
-ENTRYPOINT ["/watchtower"]
+ENTRYPOINT ["/lighthouse"]

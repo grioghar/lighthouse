@@ -5,10 +5,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/containrrr/watchtower/pkg/container"
-	"github.com/containrrr/watchtower/pkg/filters"
-	"github.com/containrrr/watchtower/pkg/sorter"
-	"github.com/containrrr/watchtower/pkg/types"
+	"github.com/grioghar/lighthouse/pkg/container"
+	"github.com/grioghar/lighthouse/pkg/filters"
+	"github.com/grioghar/lighthouse/pkg/sorter"
+	"github.com/grioghar/lighthouse/pkg/types"
 
 	log "github.com/sirupsen/logrus"
 )
@@ -35,7 +35,7 @@ func CheckForSanity(client container.Client, filter types.Filter, rollingRestart
 }
 
 // CheckForMultipleWatchtowerInstances will ensure that there are not multiple instances of the
-// watchtower running simultaneously. If multiple watchtower containers are detected, this function
+// lighthouse running simultaneously. If multiple lighthouse containers are detected, this function
 // will stop and remove all but the most recently started container. This behaviour can be bypassed
 // if a scope UID is defined.
 func CheckForMultipleWatchtowerInstances(client container.Client, cleanup bool, scope string) error {
@@ -50,11 +50,11 @@ func CheckForMultipleWatchtowerInstances(client container.Client, cleanup bool, 
 	}
 
 	if len(containers) <= 1 {
-		log.Debug("There are no additional watchtower containers")
+		log.Debug("There are no additional lighthouse containers")
 		return nil
 	}
 
-	log.Info("Found multiple running watchtower instances. Cleaning up.")
+	log.Info("Found multiple running lighthouse instances. Cleaning up.")
 	return cleanupExcessWatchtowers(containers, client, cleanup)
 }
 
@@ -67,20 +67,20 @@ func cleanupExcessWatchtowers(containers []types.Container, client container.Cli
 	for _, c := range allContainersExceptLast {
 		if err := client.StopContainer(c, 10*time.Minute); err != nil {
 			// logging the original here as we're just returning a count
-			log.WithError(err).Error("Could not stop a previous watchtower instance.")
+			log.WithError(err).Error("Could not stop a previous lighthouse instance.")
 			stopErrors++
 			continue
 		}
 
 		if cleanup {
 			if err := client.RemoveImageByID(c.ImageID()); err != nil {
-				log.WithError(err).Warning("Could not cleanup watchtower images, possibly because of other watchtowers instances in other scopes.")
+				log.WithError(err).Warning("Could not cleanup lighthouse images, possibly because of other lighthouses instances in other scopes.")
 			}
 		}
 	}
 
 	if stopErrors > 0 {
-		return fmt.Errorf("%d errors while stopping watchtower containers", stopErrors)
+		return fmt.Errorf("%d errors while stopping lighthouse containers", stopErrors)
 	}
 
 	return nil

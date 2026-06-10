@@ -21,6 +21,11 @@ type TestData struct {
 	NameOfContainerToKeep   string
 	Containers              []t.Container
 	Staleness               map[string]bool
+	// Health is returned by GetContainerHealth, letting tests drive the
+	// health-gated rollback path.
+	Health t.HealthState
+	// RolledBackCount counts StartContainerWithImage calls (i.e. rollbacks).
+	RolledBackCount int
 }
 
 // TriedToRemoveImage is a test helper function to check whether RemoveImageByID has been called
@@ -53,6 +58,17 @@ func (client MockClient) StopContainer(c t.Container, _ time.Duration) error {
 // StartContainer is a mock method
 func (client MockClient) StartContainer(_ t.Container) (t.ContainerID, error) {
 	return "", nil
+}
+
+// StartContainerWithImage is a mock method that records rollback invocations
+func (client MockClient) StartContainerWithImage(_ t.Container, _ t.ImageID) (t.ContainerID, error) {
+	client.TestData.RolledBackCount++
+	return "", nil
+}
+
+// GetContainerHealth is a mock method returning the health configured in TestData
+func (client MockClient) GetContainerHealth(_ t.ContainerID) (t.HealthState, error) {
+	return client.TestData.Health, nil
 }
 
 // RenameContainer is a mock method

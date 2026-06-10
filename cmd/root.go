@@ -43,6 +43,8 @@ var (
 	rollingRestart    bool
 	scope             string
 	labelPrecedence   bool
+	healthGated       bool
+	healthTimeout     time.Duration
 )
 
 var rootCmd = NewRootCommand()
@@ -101,6 +103,8 @@ func PreRun(cmd *cobra.Command, _ []string) {
 	rollingRestart, _ = f.GetBool("rolling-restart")
 	scope, _ = f.GetString("scope")
 	labelPrecedence, _ = f.GetBool("label-take-precedence")
+	healthGated, _ = f.GetBool("health-gated")
+	healthTimeout, _ = f.GetDuration("health-timeout")
 
 	if scope != "" {
 		log.Debugf(`Using scope %q`, scope)
@@ -369,6 +373,8 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		RollingRestart:  rollingRestart,
 		LabelPrecedence: labelPrecedence,
 		NoPull:          noPull,
+		HealthGated:     healthGated,
+		HealthTimeout:   healthTimeout,
 	}
 	result, err := actions.Update(client, updateParams)
 	if err != nil {

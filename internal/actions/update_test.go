@@ -3,11 +3,11 @@ package actions_test
 import (
 	"time"
 
-	"github.com/grioghar/lighthouse/internal/actions"
-	"github.com/grioghar/lighthouse/pkg/types"
 	dockerTypes "github.com/docker/docker/api/types"
 	dockerContainer "github.com/docker/docker/api/types/container"
 	"github.com/docker/go-connections/nat"
+	"github.com/grioghar/lighthouse/internal/actions"
+	"github.com/grioghar/lighthouse/pkg/types"
 
 	. "github.com/grioghar/lighthouse/internal/actions/mocks"
 	. "github.com/onsi/ginkgo"
@@ -119,6 +119,41 @@ var _ = Describe("the update action", func() {
 				// If this happens, an error is emitted to the logs, so a notification should still be sent.
 				Expect(report.Updated()).To(HaveLen(1))
 				Expect(report.Fresh()).To(HaveLen(1))
+			})
+		})
+	})
+
+	When("health-gated updates are enabled", func() {
+		When("an updated container becomes healthy", func() {
+			It("should not roll back and should report the container as updated", func() {
+				data := getCommonTestData("")
+				data.Health = types.HealthState{Status: types.HealthHealthy, Running: true}
+				client := CreateMockClient(data, false, false)
+				report, err := actions.Update(client, types.UpdateParams{HealthGated: true, HealthTimeout: time.Second})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(client.TestData.RolledBackCount).To(Equal(0))
+				Expect(report.Updated()).NotTo(BeEmpty())
+			})
+		})
+		When("an updated container fails to become healthy", func() {
+			It("should roll back to the previous image and report the update as failed", func() {
+				data := getCommonTestData("")
+				data.Health = types.HealthState{Status: types.HealthUnhealthy}
+				client := CreateMockClient(data, false, false)
+				report, err := actions.Update(client, types.UpdateParams{HealthGated: true, HealthTimeout: time.Second})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(client.TestData.RolledBackCount).To(BeNumerically(">", 0))
+				Expect(report.Failed()).NotTo(BeEmpty())
+			})
+		})
+		When("health gating is disabled", func() {
+			It("should never roll back even if a container would be unhealthy", func() {
+				data := getCommonTestData("")
+				data.Health = types.HealthState{Status: types.HealthUnhealthy}
+				client := CreateMockClient(data, false, false)
+				_, err := actions.Update(client, types.UpdateParams{HealthGated: false})
+				Expect(err).NotTo(HaveOccurred())
+				Expect(client.TestData.RolledBackCount).To(Equal(0))
 			})
 		})
 	})

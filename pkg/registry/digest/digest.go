@@ -1,7 +1,6 @@
 package digest
 
 import (
-	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
 	"errors"
@@ -20,6 +19,29 @@ import (
 
 // ContentDigestHeader is the key for the key-value pair containing the digest header
 const ContentDigestHeader = "Docker-Content-Digest"
+
+// digestClient is a shared HTTP client for registry digest requests. It is
+// declared once at the package level so its connection pool (keep-alive, idle
+// connections) is reused across every container checked in a scan instead of
+// being thrown away after a single request.
+var digestClient = &http.Client{
+	Transport: &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		// NOTE: TLS certificate verification is intentionally left enabled.
+		// Disabling it would allow a network attacker to MITM the registry,
+		// forge image digests, and observe the bearer/basic credentials sent
+		// on these requests.
+	},
+}
 
 // CompareDigest ...
 func CompareDigest(container types.Container, registryAuth string) (bool, error) {
@@ -76,27 +98,15 @@ func TransformAuth(registryAuth string) string {
 
 // GetDigest from registry using a HEAD request to prevent rate limiting
 func GetDigest(url string, token string) (string, error) {
-	tr := &http.Transport{
-		Proxy: http.ProxyFromEnvironment,
-		DialContext: (&net.Dialer{
-			Timeout:   30 * time.Second,
-			KeepAlive: 30 * time.Second,
-		}).DialContext,
-		ForceAttemptHTTP2:     true,
-		MaxIdleConns:          100,
-		IdleConnTimeout:       90 * time.Second,
-		TLSHandshakeTimeout:   10 * time.Second,
-		ExpectContinueTimeout: 1 * time.Second,
-		TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
-	}
-	client := &http.Client{Transport: tr}
-
-	req, _ := http.NewRequest("HEAD", url, nil)
-	req.Header.Set("User-Agent", meta.UserAgent)
-
 	if token == "" {
 		return "", errors.New("could not fetch token")
 	}
+
+	req, err := http.NewRequest("HEAD", url, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("User-Agent", meta.UserAgent)
 
 	// CREDENTIAL: Uncomment to log the request token
 	// logrus.WithField("token", token).Trace("Setting request token")
@@ -109,7 +119,7 @@ func GetDigest(url string, token string) (string, error) {
 
 	logrus.WithField("url", url).Debug("Doing a HEAD request to fetch a digest")
 
-	res, err := client.Do(req)
+	res, err := digestClient.Do(req)
 	if err != nil {
 		return "", err
 	}

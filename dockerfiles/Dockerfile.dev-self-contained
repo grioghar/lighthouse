@@ -2,7 +2,7 @@
 # Builder
 #
 
-FROM golang:alpine as builder
+FROM golang:1.25-alpine as builder
 
 # use version (for example "v0.3.3") or "main"
 ARG LIGHTHOUSE_VERSION=main

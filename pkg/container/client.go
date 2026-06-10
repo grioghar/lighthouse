@@ -2,6 +2,7 @@ package container
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io"
 	"strings"
@@ -13,7 +14,6 @@ import (
 	"github.com/docker/docker/api/types/network"
 	sdkClient "github.com/docker/docker/client"
 	log "github.com/sirupsen/logrus"
-	"golang.org/x/net/context"
 
 	"github.com/grioghar/lighthouse/pkg/registry"
 	"github.com/grioghar/lighthouse/pkg/registry/digest"
@@ -29,6 +29,8 @@ type Client interface {
 	GetContainer(containerID t.ContainerID) (t.Container, error)
 	StopContainer(t.Container, time.Duration) error
 	StartContainer(t.Container) (t.ContainerID, error)
+	StartContainerWithImage(t.Container, t.ImageID) (t.ContainerID, error)
+	GetContainerHealth(t.ContainerID) (t.HealthState, error)
 	RenameContainer(t.Container, string) error
 	IsContainerStale(t.Container, t.UpdateParams) (stale bool, latestImage t.ImageID, err error)
 	ExecuteCommand(containerID t.ContainerID, command string, timeout int) (SkipUpdate bool, err error)
@@ -249,8 +251,22 @@ func (client dockerClient) GetNetworkConfig(c t.Container) *network.NetworkingCo
 }
 
 func (client dockerClient) StartContainer(c t.Container) (t.ContainerID, error) {
+	return client.startContainer(c, "")
+}
+
+// StartContainerWithImage recreates the container pinned to a specific image ID,
+// overriding the image normally resolved from the container's config. It is used
+// to roll back to the previous image when a health-gated update fails.
+func (client dockerClient) StartContainerWithImage(c t.Container, imageID t.ImageID) (t.ContainerID, error) {
+	return client.startContainer(c, imageID)
+}
+
+func (client dockerClient) startContainer(c t.Container, imageOverride t.ImageID) (t.ContainerID, error) {
 	bg := context.Background()
 	config := c.GetCreateConfig()
+	if imageOverride != "" {
+		config.Image = string(imageOverride)
+	}
 	hostConfig := c.GetCreateHostConfig()
 	networkConfig := client.GetNetworkConfig(c)
 
@@ -317,6 +333,27 @@ func (client dockerClient) RenameContainer(c t.Container, newName string) error 
 	bg := context.Background()
 	log.Debugf("Renaming container %s (%s) to %s", c.Name(), c.ID().ShortID(), newName)
 	return client.api.ContainerRename(bg, string(c.ID()), newName)
+}
+
+// GetContainerHealth inspects the container and reports its current run state and
+// Docker health status. HealthState.Status is empty when the image defines no
+// HEALTHCHECK.
+func (client dockerClient) GetContainerHealth(id t.ContainerID) (t.HealthState, error) {
+	info, err := client.api.ContainerInspect(context.Background(), string(id))
+	if err != nil {
+		return t.HealthState{}, err
+	}
+
+	hs := t.HealthState{}
+	if info.State != nil {
+		hs.Running = info.State.Running
+		hs.Restarting = info.State.Restarting
+		hs.ExitCode = info.State.ExitCode
+		if info.State.Health != nil {
+			hs.Status = info.State.Health.Status
+		}
+	}
+	return hs, nil
 }
 
 func (client dockerClient) IsContainerStale(container t.Container, params t.UpdateParams) (stale bool, latestImage t.ImageID, err error) {

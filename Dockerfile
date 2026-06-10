@@ -7,7 +7,7 @@
 # For the release image that copies a pre-built binary, see dockerfiles/Dockerfile.
 #
 # Optionally override the embedded version: --build-arg VERSION=v1.2.3
-FROM golang:alpine AS builder
+FROM golang:1.25-alpine AS builder
 
 ARG VERSION=docker
 

@@ -158,6 +158,17 @@ func RegisterSystemFlags(rootCmd *cobra.Command) {
 		"Restart containers one at a time")
 
 	flags.BoolP(
+		"health-gated",
+		"",
+		envBool("WATCHTOWER_HEALTH_GATED"),
+		"Roll back to the previous image if an updated container fails to become healthy")
+
+	flags.Duration(
+		"health-timeout",
+		envDuration("WATCHTOWER_HEALTH_TIMEOUT"),
+		"How long to wait for an updated container to become healthy before rolling back")
+
+	flags.BoolP(
 		"http-api-update",
 		"",
 		envBool("WATCHTOWER_HTTP_API_UPDATE"),
@@ -448,6 +459,7 @@ func SetDefaults() {
 	viper.SetDefault("WATCHTOWER_NOTIFICATION_SLACK_IDENTIFIER", "lighthouse")
 	viper.SetDefault("WATCHTOWER_LOG_LEVEL", "info")
 	viper.SetDefault("WATCHTOWER_LOG_FORMAT", "auto")
+	viper.SetDefault("WATCHTOWER_HEALTH_TIMEOUT", time.Second*60)
 }
 
 // EnvConfig translates the command-line options into environment variables

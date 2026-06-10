@@ -2,6 +2,8 @@ package actions
 
 import (
 	"errors"
+	"fmt"
+	"time"
 
 	"github.com/grioghar/lighthouse/internal/util"
 	"github.com/grioghar/lighthouse/pkg/container"
@@ -11,6 +13,10 @@ import (
 	"github.com/grioghar/lighthouse/pkg/types"
 	log "github.com/sirupsen/logrus"
 )
+
+// defaultHealthTimeout is how long a health-gated update waits for an updated
+// container to become healthy before rolling back, when no timeout is provided.
+const defaultHealthTimeout = 60 * time.Second
 
 // Update looks at the running Docker containers to see if any of the images
 // used to start those containers have been updated. If a change is detected in
@@ -221,14 +227,96 @@ func restartStaleContainer(container types.Container, client container.Client, p
 	}
 
 	if !params.NoRestart {
-		if newContainerID, err := client.StartContainer(container); err != nil {
+		newContainerID, err := client.StartContainer(container)
+		if err != nil {
 			log.Error(err)
 			return err
-		} else if container.ToRestart() && params.LifecycleHooks {
+		}
+		if container.ToRestart() && params.LifecycleHooks {
 			lifecycle.ExecutePostUpdateCommand(client, newContainerID)
+		}
+		// Health-gated rollback: if an updated container fails to come up
+		// healthy, restore the previous image so a bad release can't take a
+		// service down. The lighthouse container itself is excluded since it
+		// can't supervise its own replacement.
+		if params.HealthGated && container.IsStale() && !container.IsWatchtower() {
+			if err := verifyHealthOrRollback(client, container, newContainerID, params); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
+}
+
+// verifyHealthOrRollback waits for the freshly-started container to become
+// healthy. If it does not, it stops the unhealthy container and recreates it
+// from the previous image, returning an error so the update is reported as
+// failed (and the previous image is not cleaned up).
+func verifyHealthOrRollback(client container.Client, c types.Container, newContainerID types.ContainerID, params types.UpdateParams) error {
+	clog := log.WithField("container", c.Name())
+	if waitForContainerHealth(client, newContainerID, params.HealthTimeout) {
+		clog.Debug("Updated container reported healthy")
+		return nil
+	}
+
+	previousImage := c.ImageID()
+	clog.Warnf("Updated container did not become healthy; rolling back to previous image %s", previousImage.ShortID())
+
+	if newContainer, err := client.GetContainer(newContainerID); err != nil {
+		clog.WithError(err).Error("Rollback: could not inspect the unhealthy container")
+	} else if err := client.StopContainer(newContainer, params.Timeout); err != nil {
+		clog.WithError(err).Error("Rollback: could not stop the unhealthy container")
+	}
+
+	if previousImage == "" {
+		return fmt.Errorf("container %q was unhealthy after update and no previous image was available to roll back to", c.Name())
+	}
+
+	if _, err := client.StartContainerWithImage(c, previousImage); err != nil {
+		return fmt.Errorf("container %q was unhealthy after update and rollback to %s failed: %w", c.Name(), previousImage.ShortID(), err)
+	}
+
+	return fmt.Errorf("container %q was unhealthy after update; rolled back to previous image %s", c.Name(), previousImage.ShortID())
+}
+
+// waitForContainerHealth polls the container until it is healthy, fails, or the
+// timeout elapses. For images with a HEALTHCHECK it honours the reported health
+// status; for images without one it falls back to "running and not restarting"
+// once the timeout has elapsed, which catches crash-looping containers.
+func waitForContainerHealth(client container.Client, id types.ContainerID, timeout time.Duration) bool {
+	if timeout <= 0 {
+		timeout = defaultHealthTimeout
+	}
+	const interval = 2 * time.Second
+	deadline := time.Now().Add(timeout)
+
+	for {
+		hs, err := client.GetContainerHealth(id)
+		if err != nil {
+			log.WithError(err).Debug("Health check inspection failed")
+			return false
+		}
+
+		switch hs.Status {
+		case types.HealthHealthy:
+			return true
+		case types.HealthUnhealthy:
+			return false
+		}
+
+		timedOut := !time.Now().Before(deadline)
+		if hs.Status == "" {
+			// No HEALTHCHECK defined: judge by run state once settled.
+			if timedOut {
+				return hs.Running && !hs.Restarting
+			}
+		} else if timedOut {
+			// Still "starting" at the deadline -> treat as failed.
+			return false
+		}
+
+		time.Sleep(interval)
+	}
 }
 
 // UpdateImplicitRestart iterates through the passed containers, setting the

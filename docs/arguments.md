@@ -403,6 +403,33 @@ Environment Variable: WATCHTOWER_ROLLING_RESTART
              Default: false
 ```
 
+## Health-gated updates (rollback)
+Roll back to the previous image when an updated container fails to become healthy.
+After recreating a container with a new image, Lighthouse waits for it to report a
+healthy Docker [HEALTHCHECK](https://docs.docker.com/engine/reference/builder/#healthcheck)
+status (or, for images without a healthcheck, to stay running without crash-looping).
+If it does not within the timeout, the unhealthy container is stopped and recreated
+from the previous image, and the update is reported as failed. This protects services
+like media servers from being taken down by a bad release.
+
+```text
+            Argument: --health-gated
+Environment Variable: WATCHTOWER_HEALTH_GATED
+                Type: Boolean
+             Default: false
+```
+
+## Health-gated timeout
+How long to wait for an updated container to become healthy before rolling back.
+Only used when `--health-gated` is enabled.
+
+```text
+            Argument: --health-timeout
+Environment Variable: WATCHTOWER_HEALTH_TIMEOUT
+                Type: Duration
+             Default: 60s
+```
+
 ## Wait until timeout
 Timeout before the container is forcefully stopped. When set, this option will change the default (`10s`) wait time to the given value. An example: `--stop-timeout 30s` will set the timeout to 30 seconds.
 

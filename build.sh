@@ -1,9 +1,9 @@
 #!/bin/bash
 
-BINFILE=watchtower
+BINFILE=lighthouse
 if [ -n "$MSYSTEM" ]; then
-    BINFILE=watchtower.exe
+    BINFILE=lighthouse.exe
 fi
 VERSION=$(git describe --tags)
 echo "Building $VERSION..."
-go build -o $BINFILE -ldflags "-X github.com/containrrr/watchtower/internal/meta.Version=$VERSION"
+go build -o $BINFILE -ldflags "-X github.com/grioghar/lighthouse/internal/meta.Version=$VERSION"

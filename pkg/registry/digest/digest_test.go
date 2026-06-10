@@ -2,9 +2,9 @@ package digest_test
 
 import (
 	"fmt"
-	"github.com/containrrr/watchtower/internal/actions/mocks"
-	"github.com/containrrr/watchtower/pkg/registry/digest"
-	wtTypes "github.com/containrrr/watchtower/pkg/types"
+	"github.com/grioghar/lighthouse/internal/actions/mocks"
+	"github.com/grioghar/lighthouse/pkg/registry/digest"
+	wtTypes "github.com/grioghar/lighthouse/pkg/types"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/ghttp"
@@ -107,7 +107,7 @@ var _ = Describe("Digests", func() {
 			server.AppendHandlers(
 				ghttp.CombineHandlers(
 					ghttp.VerifyHeader(http.Header{
-						"User-Agent": []string{"Watchtower/v0.0.0-unknown"},
+						"User-Agent": []string{"Lighthouse/v0.0.0-unknown"},
 					}),
 					ghttp.RespondWith(http.StatusOK, "", http.Header{
 						digest.ContentDigestHeader: []string{

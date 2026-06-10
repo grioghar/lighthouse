@@ -10,8 +10,8 @@ import (
 
 	"github.com/containrrr/shoutrrr"
 	"github.com/containrrr/shoutrrr/pkg/types"
-	"github.com/containrrr/watchtower/pkg/notifications/templates"
-	t "github.com/containrrr/watchtower/pkg/types"
+	"github.com/grioghar/lighthouse/pkg/notifications/templates"
+	t "github.com/grioghar/lighthouse/pkg/types"
 	log "github.com/sirupsen/logrus"
 )
 

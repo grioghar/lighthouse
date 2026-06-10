@@ -11,17 +11,17 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/containrrr/watchtower/internal/actions"
-	"github.com/containrrr/watchtower/internal/flags"
-	"github.com/containrrr/watchtower/internal/meta"
-	"github.com/containrrr/watchtower/pkg/api"
-	apiMetrics "github.com/containrrr/watchtower/pkg/api/metrics"
-	"github.com/containrrr/watchtower/pkg/api/update"
-	"github.com/containrrr/watchtower/pkg/container"
-	"github.com/containrrr/watchtower/pkg/filters"
-	"github.com/containrrr/watchtower/pkg/metrics"
-	"github.com/containrrr/watchtower/pkg/notifications"
-	t "github.com/containrrr/watchtower/pkg/types"
+	"github.com/grioghar/lighthouse/internal/actions"
+	"github.com/grioghar/lighthouse/internal/flags"
+	"github.com/grioghar/lighthouse/internal/meta"
+	"github.com/grioghar/lighthouse/pkg/api"
+	apiMetrics "github.com/grioghar/lighthouse/pkg/api/metrics"
+	"github.com/grioghar/lighthouse/pkg/api/update"
+	"github.com/grioghar/lighthouse/pkg/container"
+	"github.com/grioghar/lighthouse/pkg/filters"
+	"github.com/grioghar/lighthouse/pkg/metrics"
+	"github.com/grioghar/lighthouse/pkg/notifications"
+	t "github.com/grioghar/lighthouse/pkg/types"
 	"github.com/robfig/cron"
 	log "github.com/sirupsen/logrus"
 
@@ -47,14 +47,15 @@ var (
 
 var rootCmd = NewRootCommand()
 
-// NewRootCommand creates the root command for watchtower
+// NewRootCommand creates the root command for lighthouse
 func NewRootCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "watchtower",
+		Use:   "lighthouse",
 		Short: "Automatically updates running Docker containers",
 		Long: `
-	Watchtower automatically updates running Docker containers whenever a new image is released.
-	More information available at https://github.com/containrrr/watchtower/.
+	Lighthouse automatically updates running Docker containers whenever a new image is released.
+	Lighthouse is a maintained fork of containrrr/watchtower.
+	More information available at https://github.com/grioghar/lighthouse/.
 	`,
 		Run:    Run,
 		PreRun: PreRun,
@@ -148,7 +149,7 @@ func Run(c *cobra.Command, names []string) {
 		// health check should not have pid 1
 		if os.Getpid() == 1 {
 			time.Sleep(1 * time.Second)
-			log.Fatal("The health check flag should never be passed to the main watchtower container process")
+			log.Fatal("The health check flag should never be passed to the main lighthouse container process")
 		}
 		os.Exit(0)
 	}
@@ -273,7 +274,7 @@ func writeStartupMessage(c *cobra.Command, sched time.Time, filtering string) {
 		notifier.StartNotification()
 	}
 
-	startupLog.Info("Watchtower ", meta.Version)
+	startupLog.Info("Lighthouse ", meta.Version)
 
 	notifierNames := notifier.GetNames()
 	if len(notifierNames) > 0 {

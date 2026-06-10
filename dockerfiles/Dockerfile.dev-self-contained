@@ -5,11 +5,11 @@
 FROM golang:alpine as builder
 
 # use version (for example "v0.3.3") or "main"
-ARG WATCHTOWER_VERSION=main
+ARG LIGHTHOUSE_VERSION=main
 
 # Pre download required modules to avoid redownloading at each build thanks to docker layer caching.
 # Copying go.mod and go.sum ensure to invalid the layer/build cache if there is a change in module requirement
-WORKDIR /watchtower
+WORKDIR /lighthouse
 COPY go.mod .
 COPY go.sum .
 RUN go mod download
@@ -20,28 +20,31 @@ RUN apk add --no-cache \
     git \
     tzdata
 
-COPY . /watchtower
+COPY . /lighthouse
 
 RUN \
-  cd /watchtower && \
+  cd /lighthouse && \
   \
-  GO111MODULE=on CGO_ENABLED=0 GOOS=linux go build -a -ldflags "-extldflags '-static' -X github.com/containrrr/watchtower/internal/meta.Version=$(git describe --tags)" . && \
+  GO111MODULE=on CGO_ENABLED=0 GOOS=linux go build -a -o lighthouse -ldflags "-extldflags '-static' -X github.com/grioghar/lighthouse/internal/meta.Version=$(git describe --tags)" . && \
   GO111MODULE=on go test ./... -v
 
 
 #
-# watchtower
+# lighthouse
 #
 
 FROM scratch
 
+# Canonical lighthouse identity label, plus the legacy watchtower label so
+# existing tooling that detects the updater container keeps working.
+LABEL "lighthouse"="true"
 LABEL "com.centurylinklabs.watchtower"="true"
 
 # copy files from other container
 COPY --from=builder /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 COPY --from=builder /usr/share/zoneinfo /usr/share/zoneinfo
-COPY --from=builder /watchtower/watchtower /watchtower
+COPY --from=builder /lighthouse/lighthouse /lighthouse
 
-HEALTHCHECK CMD [ "/watchtower", "--health-check"]
+HEALTHCHECK CMD [ "/lighthouse", "--health-check"]
 
-ENTRYPOINT ["/watchtower"]
+ENTRYPOINT ["/lighthouse"]

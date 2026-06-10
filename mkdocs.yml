@@ -1,6 +1,6 @@
-site_name: Watchtower
-site_url: https://containrrr.dev/watchtower/
-repo_url: https://github.com/containrrr/watchtower/
+site_name: Lighthouse
+site_url: https://github.com/grioghar/lighthouse/
+repo_url: https://github.com/grioghar/lighthouse/
 edit_uri: edit/main/docs/
 theme:
   name: 'material'
@@ -29,8 +29,8 @@ markdown_extensions:
     - pymdownx.magiclink:
         repo_url_shortener: True
         provider: github
-        user: containrrr
-        repo: watchtower
+        user: grioghar
+        repo: lighthouse
     - pymdownx.saneheaders
     - pymdownx.tabbed:
         alternate_style: true

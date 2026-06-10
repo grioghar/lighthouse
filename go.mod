@@ -1,4 +1,4 @@
-module github.com/containrrr/watchtower
+module github.com/grioghar/lighthouse
 
 go 1.20
 

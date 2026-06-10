@@ -4,9 +4,9 @@ import (
 	"time"
 
 	"github.com/containrrr/shoutrrr/pkg/types"
-	"github.com/containrrr/watchtower/internal/actions/mocks"
-	"github.com/containrrr/watchtower/internal/flags"
-	s "github.com/containrrr/watchtower/pkg/session"
+	"github.com/grioghar/lighthouse/internal/actions/mocks"
+	"github.com/grioghar/lighthouse/internal/flags"
+	s "github.com/grioghar/lighthouse/pkg/session"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	"github.com/onsi/gomega/gbytes"
@@ -218,7 +218,7 @@ updt1 (mock/updt1:latest): Updated
 
 		When("using a template referencing Title", func() {
 			It("should contain the title in the output", func() {
-				expected := `Watchtower updates on Mock`
+				expected := `Lighthouse updates on Mock`
 				data := mockDataFromStates(s.UpdatedState)
 				Expect(getTemplatedResult(`{{ .Title }}`, false, data)).To(Equal(expected))
 			})

@@ -1,0 +1,87 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Lighthouse logo">
+  <title>Lighthouse</title>
+  <defs>
+    <!-- Night sky / sea gradient for the badge -->
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0b2a4a"/>
+      <stop offset="0.55" stop-color="#103a5e"/>
+      <stop offset="1" stop-color="#0a2238"/>
+    </linearGradient>
+    <!-- Warm glow from the lantern -->
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffe9a8" stop-opacity="0.95"/>
+      <stop offset="0.4" stop-color="#ffd45e" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffd45e" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="beam" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#ffe9a8" stop-opacity="0.85"/>
+      <stop offset="1" stop-color="#ffe9a8" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="ring" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffd76a"/>
+      <stop offset="1" stop-color="#e0a93b"/>
+    </linearGradient>
+    <!-- Clip so stripes and glow stay inside the round badge -->
+    <clipPath id="badgeClip"><circle cx="256" cy="256" r="232"/></clipPath>
+    <!-- Clip stripes to the tapered tower body -->
+    <clipPath id="towerClip"><polygon points="220,176 292,176 320,372 192,372"/></clipPath>
+    <!-- Curved baseline for the wordmark, seated on the bottom ribbon -->
+    <path id="namePath" d="M 71 363 A 214 214 0 0 0 441 363" fill="none"/>
+  </defs>
+
+  <!-- Badge background + ring -->
+  <circle cx="256" cy="256" r="248" fill="url(#ring)"/>
+  <circle cx="256" cy="256" r="232" fill="url(#sky)"/>
+
+  <g clip-path="url(#badgeClip)">
+    <!-- Light beams sweeping from the lantern -->
+    <polygon points="256,150 60,70 60,250" fill="url(#beam)"/>
+    <polygon points="256,150 452,70 452,250" fill="url(#beam)" transform="scale(-1,1) translate(-512,0)"/>
+    <!-- Lantern glow halo -->
+    <circle cx="256" cy="150" r="84" fill="url(#glow)"/>
+
+    <!-- Stars -->
+    <g fill="#cfe4ff" opacity="0.85">
+      <circle cx="110" cy="120" r="2.6"/>
+      <circle cx="158" cy="86" r="1.8"/>
+      <circle cx="402" cy="110" r="2.4"/>
+      <circle cx="360" cy="74" r="1.6"/>
+      <circle cx="430" cy="170" r="1.8"/>
+      <circle cx="84" cy="190" r="1.8"/>
+    </g>
+
+    <!-- Rocks at the base -->
+    <path d="M120 386 Q180 350 256 368 Q330 350 392 386 L392 430 L120 430 Z" fill="#0a1c2e"/>
+
+    <!-- Tower body (white) with red stripes -->
+    <polygon points="220,176 292,176 320,372 192,372" fill="#f4f6fb"/>
+    <g clip-path="url(#towerClip)">
+      <rect x="180" y="176" width="152" height="38" fill="#e23b3b"/>
+      <rect x="180" y="252" width="152" height="40" fill="#e23b3b"/>
+      <rect x="180" y="330" width="152" height="48" fill="#e23b3b"/>
+    </g>
+    <!-- Tower outline + a door -->
+    <polygon points="220,176 292,176 320,372 192,372" fill="none" stroke="#0a1c2e" stroke-width="6" stroke-linejoin="round"/>
+    <path d="M238 372 L238 332 Q256 314 274 332 L274 372 Z" fill="#0a1c2e"/>
+
+    <!-- Gallery platform -->
+    <rect x="206" y="160" width="100" height="18" rx="3" fill="#0a1c2e"/>
+    <!-- Lantern room -->
+    <rect x="224" y="120" width="64" height="42" rx="3" fill="#13354f"/>
+    <rect x="232" y="124" width="48" height="34" fill="#ffd45e"/>
+    <g stroke="#13354f" stroke-width="5"><line x1="256" y1="122" x2="256" y2="160"/></g>
+    <!-- Roof + finial -->
+    <polygon points="216,120 296,120 256,86" fill="#c0392b"/>
+    <circle cx="256" cy="80" r="7" fill="url(#ring)"/>
+
+    <!-- Bottom emblem ribbon that seats the wordmark -->
+    <path d="M 83 356 A 200 200 0 0 0 429 356" fill="none" stroke="url(#ring)" stroke-width="50"/>
+    <path d="M 83 356 A 200 200 0 0 0 429 356" fill="none" stroke="#0a1c2e" stroke-width="50" stroke-opacity="0.12" transform="translate(0,1)"/>
+  </g>
+
+  <!-- Wordmark on the bottom ribbon -->
+  <text font-family="Verdana, Geneva, 'DejaVu Sans', sans-serif" font-size="40" font-weight="700"
+        letter-spacing="7" fill="#0a2238" text-anchor="middle">
+    <textPath href="#namePath" startOffset="50%">LIGHTHOUSE</textPath>
+  </text>
+</svg>

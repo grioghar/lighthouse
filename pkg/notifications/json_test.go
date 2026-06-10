@@ -1,7 +1,7 @@
 package notifications
 
 import (
-	s "github.com/containrrr/watchtower/pkg/session"
+	s "github.com/grioghar/lighthouse/pkg/session"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
@@ -108,7 +108,7 @@ var _ = Describe("JSON template", func() {
 			}
 		]
 		},
-		"title": "Watchtower updates on Mock"
+		"title": "Lighthouse updates on Mock"
 }`
 				data := mockDataFromStates(s.UpdatedState, s.FreshState, s.FailedState, s.SkippedState, s.UpdatedState)
 				Expect(getTemplatedResult(`json.v1`, false, data)).To(MatchJSON(expected))

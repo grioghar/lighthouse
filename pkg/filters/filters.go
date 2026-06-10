@@ -4,7 +4,7 @@ import (
 	"regexp"
 	"strings"
 
-	t "github.com/containrrr/watchtower/pkg/types"
+	t "github.com/grioghar/lighthouse/pkg/types"
 )
 
 // WatchtowerContainersFilter filters only watchtower containers

@@ -15,9 +15,13 @@ import (
 	"github.com/spf13/viper"
 )
 
-// DockerAPIMinVersion is the minimum version of the docker api required to
-// use watchtower
-const DockerAPIMinVersion string = "1.25"
+// DockerAPIMinVersion is the default docker API version requested by the
+// client. Modern Docker daemons reject very old API versions (e.g. they report
+// "client version 1.25 is too old. Minimum supported API version is 1.40"),
+// which previously caused Lighthouse to crash-loop. 1.40 (Docker Engine 19.03)
+// is a widely-supported floor. When DOCKER_API_VERSION is left unset the client
+// negotiates the daemon's version automatically instead of pinning this value.
+const DockerAPIMinVersion string = "1.40"
 
 var defaultInterval = int((time.Hour * 24).Seconds())
 

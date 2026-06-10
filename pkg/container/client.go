@@ -43,7 +43,10 @@ type Client interface {
 //   - DOCKER_TLS_VERIFY		whether to verify tls certificates
 //   - DOCKER_API_VERSION	the minimum docker api version to work with
 func NewClient(opts ClientOptions) Client {
-	cli, err := sdkClient.NewClientWithOpts(sdkClient.FromEnv)
+	// WithAPIVersionNegotiation lets the client agree on a mutually-supported API
+	// version with the daemon when DOCKER_API_VERSION is not explicitly pinned.
+	// This avoids "client version X is too old" failures against modern daemons.
+	cli, err := sdkClient.NewClientWithOpts(sdkClient.FromEnv, sdkClient.WithAPIVersionNegotiation())
 
 	if err != nil {
 		log.Fatalf("Error instantiating Docker client: %s", err)

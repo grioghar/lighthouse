@@ -8,17 +8,34 @@
   <br/><br/>
 
   [![Apache-2.0 License](https://img.shields.io/github/license/grioghar/lighthouse.svg)](https://www.apache.org/licenses/LICENSE-2.0)
-  [![latest version](https://img.shields.io/github/tag/grioghar/lighthouse.svg)](https://github.com/grioghar/lighthouse/releases)
+  [![latest release](https://img.shields.io/github/v/release/grioghar/lighthouse.svg)](https://github.com/grioghar/lighthouse/releases)
+  [![Changelog](https://img.shields.io/badge/changelog-md-blue.svg)](CHANGELOG.md)
   [![Go Report Card](https://goreportcard.com/badge/github.com/grioghar/lighthouse)](https://goreportcard.com/report/github.com/grioghar/lighthouse)
 
 </div>
 
-> **Lighthouse is a maintained fork of [containrrr/watchtower](https://github.com/containrrr/watchtower)**, which entered
-> "no longer maintained" status upstream. Lighthouse carries that work forward with
-> ongoing maintenance and security hardening. It stays **drop-in compatible**: existing
-> `WATCHTOWER_*` environment variables and `com.centurylinklabs.watchtower.*` container
-> labels continue to work, alongside the new `LIGHTHOUSE_*` variables and `lighthouse.*`
-> labels. See [NOTICE.md](NOTICE.md) for attribution and licensing.
+## 🔦 From the Watchtower to the Lighthouse
+
+Lighthouse exists because of [**Watchtower**](https://github.com/containrrr/watchtower).
+For years, Watchtower quietly kept countless homelabs and self-hosted stacks up to
+date — an elegant, dependable piece of software built by [nils måsén](https://github.com/piksel),
+[Simon Aronsson](https://github.com/simskij), the wider community of contributors, and
+originally [CenturyLink Labs](https://github.com/containrrr). When the project entered
+*"no longer maintained"* status, it left a lighthouse keeper's post empty.
+
+**Lighthouse takes the torch.** This is not a rewrite or a replacement that disowns its
+origins — it is the same light, tended by new hands. The overwhelming majority of this
+code is Watchtower's, and we carry it forward with deep respect and gratitude, under the
+same Apache 2.0 license, with every original copyright and contributor credit preserved.
+
+To everyone who built and maintained Watchtower: **thank you.** We hope to be good
+stewards of what you made. 🙏
+
+> **Drop-in compatible.** Existing `WATCHTOWER_*` environment variables and
+> `com.centurylinklabs.watchtower.*` labels keep working unchanged, alongside the new
+> `LIGHTHOUSE_*` variables and `lighthouse.*` labels. Migrating is as simple as swapping
+> the image. See [NOTICE.md](NOTICE.md) for attribution and [CHANGELOG.md](CHANGELOG.md)
+> for what's changed.
 
 ## Quick Start
 

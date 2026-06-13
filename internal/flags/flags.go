@@ -186,6 +186,24 @@ func RegisterSystemFlags(rootCmd *cobra.Command) {
 		envString("WATCHTOWER_SESSION_SECRET"),
 		"Optional signing key for web session cookies (defaults to a random per-process key)")
 
+	flags.StringP(
+		"config-file",
+		"",
+		envString("WATCHTOWER_CONFIG_FILE"),
+		"Path to persist runtime settings changed via the web console")
+
+	flags.StringP(
+		"tls-cert",
+		"",
+		envString("WATCHTOWER_TLS_CERT"),
+		"Path to a TLS certificate to serve the web UI / API over HTTPS")
+
+	flags.StringP(
+		"tls-key",
+		"",
+		envString("WATCHTOWER_TLS_KEY"),
+		"Path to the TLS private key (required with --tls-cert)")
+
 	flags.BoolP(
 		"http-api-update",
 		"",

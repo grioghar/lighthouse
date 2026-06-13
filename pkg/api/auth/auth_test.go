@@ -69,6 +69,46 @@ func TestAuthorized(t *testing.T) {
 	}
 }
 
+func TestRequireAPICSRF(t *testing.T) {
+	a := New("tok", "key")
+	Now = func() time.Time { return time.Unix(1_700_000_000, 0) }
+	defer func() { Now = time.Now }()
+	h := a.RequireAPI(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	session := &http.Cookie{Name: SessionCookieName, Value: a.Issue(Now())}
+
+	// Cookie-authenticated POST without a CSRF token -> 403.
+	r := httptest.NewRequest(http.MethodPost, "/api/v1/scan", nil)
+	r.AddCookie(session)
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("cookie POST without CSRF = %d, want 403", rec.Code)
+	}
+
+	// Cookie-authenticated POST with a matching CSRF token -> 200.
+	tok := NewCSRFToken()
+	r = httptest.NewRequest(http.MethodPost, "/api/v1/scan", nil)
+	r.AddCookie(session)
+	r.AddCookie(&http.Cookie{Name: CSRFCookieName, Value: tok})
+	r.Header.Set(CSRFHeaderName, tok)
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("cookie POST with CSRF = %d, want 200", rec.Code)
+	}
+
+	// Bearer-authenticated POST is exempt from CSRF -> 200.
+	r = httptest.NewRequest(http.MethodPost, "/api/v1/scan", nil)
+	r.Header.Set("Authorization", "Bearer tok")
+	rec = httptest.NewRecorder()
+	h.ServeHTTP(rec, r)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("bearer POST = %d, want 200", rec.Code)
+	}
+}
+
 func TestRequireAPI(t *testing.T) {
 	a := New("tok", "key")
 	h := a.RequireAPI(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

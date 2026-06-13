@@ -11,19 +11,30 @@ of taking the torch from the (no-longer-maintained) Watchtower project: security
 hardening, a full rebrand, modernization, and a new health-gated rollback
 feature — all while staying drop-in compatible with existing Watchtower setups.
 
-## [Unreleased]
+## [1.2.0] - 2026-06-13
+
+The web administration interface — a dashboard and control console, **API-driven
+underneath**. Opt-in (`--web`, off by default) so existing deployments are unchanged.
 
 ### Added
-- **Web administration interface** (`--web`, off by default). A server-rendered
-  dashboard (Go templates + htmx, all assets embedded) showing watched containers,
-  daemon/schedule status, recent scan history and a live log, with actions to
-  trigger a global scan or update a single container. Sign in with the existing
-  `--http-api-token` (exchanged for a signed, httpOnly session cookie via
-  `--session-secret`); the UI binds to `--web-address` (default `:8080`).
-- **JSON API** (`/api/v1`) backing the UI and available to external clients
-  (session cookie or bearer token): `status`, `containers`, `sessions`,
-  `sessions/{id}`, `config` (secrets redacted), `scan`, `containers/{id}/update`,
-  and an SSE `events` stream for live progress.
+- **Web administration interface** (`--web`). A server-rendered dashboard (Go
+  templates + htmx, all assets embedded) showing watched containers,
+  daemon/schedule status, recent scan history and a live log. Sign in with the
+  existing `--http-api-token` (exchanged for a signed, httpOnly session cookie via
+  `--session-secret`); binds to `--web-address` (default `:8080`).
+- **JSON API** (`/api/v1`, session-cookie or bearer auth): `status`, `containers`,
+  `sessions`, `sessions/{id}`, `config` (secrets redacted), `settings` (GET/POST),
+  `scan`, `containers/{id}/update`, and an SSE `events` stream for live progress.
+- **Runtime control console.** Update behavior (cleanup, monitor-only, no-restart,
+  no-pull, lifecycle-hooks, rolling-restart, health-gated, health-timeout) is
+  editable from the dashboard and applied to the next scan, optionally persisted
+  across restarts via `--config-file`.
+- **Optional TLS** for the UI/API via `--tls-cert` / `--tls-key`.
+
+### Security
+- CSRF double-submit protection on cookie-authenticated state-changing requests
+  (bearer clients exempt); per-IP login rate limiting; the live-log stream is gated
+  to info level and above so trace-level credentials never reach the browser.
 
 ## [1.0.1] - 2026-06-10
 

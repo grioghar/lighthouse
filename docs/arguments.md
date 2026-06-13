@@ -430,6 +430,42 @@ Environment Variable: WATCHTOWER_HEALTH_TIMEOUT
              Default: 60s
 ```
 
+## Web administration interface
+Enable the built-in web administration UI and its JSON API (`/api/v1`). The UI is a
+dashboard showing watched containers, daemon/schedule status, recent scan history and
+live progress, and lets you trigger a scan or update a single container. It is served
+from the same address as the HTTP API and is **off by default**. Sign in with the
+`--http-api-token` (it is exchanged for a session cookie).
+
+```text
+            Argument: --web
+Environment Variable: WATCHTOWER_WEB
+                Type: Boolean
+             Default: false
+```
+
+## Web address
+Address the web UI / JSON API binds to.
+
+```text
+            Argument: --web-address
+Environment Variable: WATCHTOWER_WEB_ADDRESS
+                Type: String
+             Default: ":8080"
+```
+
+## Web session secret
+Optional signing key for web session cookies. If unset, a random key is generated per
+process (sessions then reset on restart). Set a stable value to keep sessions valid
+across restarts or multiple replicas.
+
+```text
+            Argument: --session-secret
+Environment Variable: WATCHTOWER_SESSION_SECRET
+                Type: String
+             Default: (random)
+```
+
 ## Wait until timeout
 Timeout before the container is forcefully stopped. When set, this option will change the default (`10s`) wait time to the given value. An example: `--stop-timeout 30s` will set the timeout to 30 seconds.
 

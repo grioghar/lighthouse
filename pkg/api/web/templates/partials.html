@@ -1,0 +1,44 @@
+{{define "statusCards"}}
+<div class="cards">
+  <div class="card"><div class="k">Daemon</div><div class="v">{{if .DaemonReachable}}<span class="ok">connected</span>{{else}}<span class="bad">unreachable</span>{{end}}</div></div>
+  <div class="card"><div class="k">Watched</div><div class="v">{{.WatchedContainers}}</div></div>
+  <div class="card"><div class="k">Scan</div><div class="v">{{if .ScanRunning}}<span class="run">running…</span>{{else}}idle{{end}}</div></div>
+  <div class="card"><div class="k">Schedule</div><div class="v mono">{{if .Schedule}}{{.Schedule}}{{else}}interval{{end}}</div></div>
+  <div class="card"><div class="k">Version</div><div class="v mono">{{.Version}}</div></div>
+  {{with .LastScan}}<div class="card"><div class="k">Last scan</div><div class="v">{{.Updated}} updated · {{.Failed}} failed · {{.Scanned}} scanned</div></div>{{end}}
+</div>
+{{end}}
+
+{{define "containersTable"}}
+{{if .ContainersErr}}<p class="bad">Could not list containers: {{.ContainersErr}}</p>{{else}}
+<table class="grid">
+  <thead><tr><th>Name</th><th>Image</th><th>State</th><th>Health</th><th></th></tr></thead>
+  <tbody>
+  {{range .Containers}}
+    <tr>
+      <td>{{.Name}}</td>
+      <td class="mono">{{.Image}}</td>
+      <td>{{if .Running}}<span class="ok">running</span>{{else if .Restarting}}<span class="run">restarting</span>{{else}}<span class="bad">stopped</span>{{end}}</td>
+      <td>{{if .Health}}{{.Health}}{{else}}—{{end}}</td>
+      <td><button class="btn small" onclick="lh.update('{{.ID}}', this)">Update</button></td>
+    </tr>
+  {{else}}
+    <tr><td colspan="5" class="muted">No containers match the current filter.</td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{end}}
+{{end}}
+
+{{define "historyList"}}
+{{if .}}
+<table class="grid">
+  <thead><tr><th>#</th><th>When</th><th>Trigger</th><th>Scanned</th><th>Updated</th><th>Failed</th><th>ms</th></tr></thead>
+  <tbody>
+  {{range .}}
+    <tr><td>{{.ID}}</td><td class="mono">{{.Time.Format "2006-01-02 15:04:05"}}</td><td>{{.Trigger}}</td><td>{{.Scanned}}</td><td>{{.Updated}}</td><td>{{if .Failed}}<span class="bad">{{.Failed}}</span>{{else}}0{{end}}</td><td>{{.DurationMS}}</td></tr>
+  {{end}}
+  </tbody>
+</table>
+{{else}}<p class="muted">No scans yet.</p>{{end}}
+{{end}}

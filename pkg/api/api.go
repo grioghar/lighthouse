@@ -6,19 +6,24 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/grioghar/lighthouse/pkg/api/auth"
+	"github.com/grioghar/lighthouse/pkg/api/rest"
+	"github.com/grioghar/lighthouse/pkg/api/web"
 	log "github.com/sirupsen/logrus"
 )
 
 const tokenMissingMsg = "api token is empty or has not been set. exiting"
 
-// ListenAddr is the address the HTTP API binds to.
-// TODO: make this configurable via a flag.
+// ListenAddr is the default address the HTTP API/UI binds to.
 const ListenAddr = ":8080"
 
-// API is the http server responsible for serving the HTTP API endpoints
+// API is the http server responsible for serving the HTTP API endpoints and,
+// when enabled, the web administration UI.
 type API struct {
 	Token       string
+	Address     string
 	hasHandlers bool
+	streaming   bool
 	mux         *http.ServeMux
 }
 
@@ -26,6 +31,7 @@ type API struct {
 func New(token string) *API {
 	return &API{
 		Token:       token,
+		Address:     ListenAddr,
 		hasHandlers: false,
 		mux:         http.NewServeMux(),
 	}
@@ -58,6 +64,29 @@ func (api *API) RegisterHandler(path string, handler http.Handler) {
 	api.mux.HandleFunc(path, api.RequireToken(handler.ServeHTTP))
 }
 
+// EnableWeb mounts the JSON API (/api/v1, session- or bearer-authenticated) and
+// the server-rendered web UI. secret optionally pins the session signing key;
+// secure marks session cookies Secure (for TLS deployments).
+func (api *API) EnableWeb(deps rest.Deps, secret string, secure bool) error {
+	if api.Token == "" {
+		log.Fatal(tokenMissingMsg)
+	}
+	authn := auth.New(api.Token, secret)
+	handlers := rest.New(deps)
+	handlers.Register(api.mux, authn.RequireAPI)
+
+	ui, err := web.New(authn, handlers, secure)
+	if err != nil {
+		return err
+	}
+	ui.Register(api.mux)
+
+	api.hasHandlers = true
+	api.streaming = true // the /api/v1/events SSE stream is long-lived
+	log.Infof("Web UI enabled on %s", api.Address)
+	return nil
+}
+
 // Start the API and serve over HTTP. Requires an API Token to be set.
 func (api *API) Start(block bool) error {
 
@@ -70,12 +99,20 @@ func (api *API) Start(block bool) error {
 		log.Fatal(tokenMissingMsg)
 	}
 
+	// When the SSE event stream is enabled, responses are long-lived, so a
+	// global WriteTimeout would cut them off. ReadHeaderTimeout still guards
+	// against slow-header (Slowloris) attacks either way.
+	writeTimeout := 30 * time.Second
+	if api.streaming {
+		writeTimeout = 0
+	}
+
 	server := &http.Server{
-		Addr:              ListenAddr,
+		Addr:              api.Address,
 		Handler:           api.mux,
 		ReadHeaderTimeout: 5 * time.Second,
-		ReadTimeout:       10 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		ReadTimeout:       15 * time.Second,
+		WriteTimeout:      writeTimeout,
 		IdleTimeout:       60 * time.Second,
 	}
 

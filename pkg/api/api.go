@@ -22,9 +22,16 @@ const ListenAddr = ":8080"
 type API struct {
 	Token       string
 	Address     string
+	TLSCert     string
+	TLSKey      string
 	hasHandlers bool
 	streaming   bool
 	mux         *http.ServeMux
+}
+
+// TLSEnabled reports whether both a TLS certificate and key are configured.
+func (api *API) TLSEnabled() bool {
+	return api.TLSCert != "" && api.TLSKey != ""
 }
 
 // New is a factory function creating a new API instance
@@ -117,15 +124,19 @@ func (api *API) Start(block bool) error {
 	}
 
 	if block {
-		runHTTPServer(server)
+		runHTTPServer(server, api.TLSCert, api.TLSKey)
 	} else {
 		go func() {
-			runHTTPServer(server)
+			runHTTPServer(server, api.TLSCert, api.TLSKey)
 		}()
 	}
 	return nil
 }
 
-func runHTTPServer(server *http.Server) {
+func runHTTPServer(server *http.Server, certFile, keyFile string) {
+	if certFile != "" && keyFile != "" {
+		log.Fatal(server.ListenAndServeTLS(certFile, keyFile))
+		return
+	}
 	log.Fatal(server.ListenAndServe())
 }

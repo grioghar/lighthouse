@@ -12,27 +12,45 @@ var Now = time.Now
 
 const bearerPrefix = "Bearer "
 
+// bearerAuthorized reports whether the request carries a valid bearer token.
+func (a *Authenticator) bearerAuthorized(r *http.Request) bool {
+	h := r.Header.Get("Authorization")
+	return strings.HasPrefix(h, bearerPrefix) && a.CheckToken(strings.TrimPrefix(h, bearerPrefix))
+}
+
+// cookieAuthorized reports whether the request carries a valid session cookie.
+func (a *Authenticator) cookieAuthorized(r *http.Request) bool {
+	c, err := r.Cookie(SessionCookieName)
+	return err == nil && a.Verify(c.Value, Now())
+}
+
 // Authorized reports whether the request carries either a valid bearer token
 // (for programmatic clients and CI) or a valid session cookie (for the browser UI).
 func (a *Authenticator) Authorized(r *http.Request) bool {
-	if h := r.Header.Get("Authorization"); strings.HasPrefix(h, bearerPrefix) {
-		if a.CheckToken(strings.TrimPrefix(h, bearerPrefix)) {
-			return true
-		}
-	}
-	if c, err := r.Cookie(SessionCookieName); err == nil {
-		if a.Verify(c.Value, Now()) {
-			return true
-		}
-	}
-	return false
+	return a.bearerAuthorized(r) || a.cookieAuthorized(r)
 }
 
-// RequireAPI wraps an API handler, returning 401 for unauthorized requests.
+func isUnsafeMethod(method string) bool {
+	switch method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return true
+	default:
+		return false
+	}
+}
+
+// RequireAPI wraps an API handler, returning 401 for unauthorized requests. For
+// state-changing methods authenticated by the session cookie (i.e. a browser),
+// it also requires a valid CSRF token; bearer-token clients are exempt (they are
+// not subject to ambient-credential CSRF).
 func (a *Authenticator) RequireAPI(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if !a.Authorized(r) {
 			http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
+			return
+		}
+		if isUnsafeMethod(r.Method) && !a.bearerAuthorized(r) && !ValidCSRF(r) {
+			http.Error(w, `{"error":"missing or invalid CSRF token"}`, http.StatusForbidden)
 			return
 		}
 		next.ServeHTTP(w, r)

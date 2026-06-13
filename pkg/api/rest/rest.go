@@ -10,6 +10,7 @@ import (
 	"net/http"
 
 	"github.com/grioghar/lighthouse/pkg/api/store"
+	"github.com/grioghar/lighthouse/pkg/config"
 	"github.com/grioghar/lighthouse/pkg/container"
 	t "github.com/grioghar/lighthouse/pkg/types"
 )
@@ -43,9 +44,12 @@ type Deps struct {
 	Trigger func(images []string)
 	// Lock is the shared single-update lock; an empty channel means a scan is
 	// currently running.
-	Lock   chan bool
+	Lock chan bool
+	// Config is the static, read-only configuration snapshot.
 	Config ConfigInfo
-	Hub    *Hub
+	// Settings holds the runtime-adjustable update settings (editable via the API).
+	Settings *config.Store
+	Hub      *Hub
 }
 
 // Handlers serves the JSON API.
@@ -69,6 +73,8 @@ func (h *Handlers) Register(mux *http.ServeMux, wrap func(http.Handler) http.Han
 	route("GET /api/v1/sessions", h.sessions)
 	route("GET /api/v1/sessions/{id}", h.sessionDetail)
 	route("GET /api/v1/config", h.config)
+	route("GET /api/v1/settings", h.settingsGet)
+	route("POST /api/v1/settings", h.settingsPost)
 	route("POST /api/v1/scan", h.scan)
 	route("POST /api/v1/containers/{id}/update", h.containerUpdate)
 	route("GET /api/v1/events", h.events)

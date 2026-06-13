@@ -9,10 +9,12 @@ import (
 	"html/template"
 	"io/fs"
 	"net/http"
+	"time"
 
 	"github.com/grioghar/lighthouse/pkg/api/auth"
 	"github.com/grioghar/lighthouse/pkg/api/rest"
 	"github.com/grioghar/lighthouse/pkg/api/store"
+	"github.com/grioghar/lighthouse/pkg/config"
 	log "github.com/sirupsen/logrus"
 )
 
@@ -22,10 +24,11 @@ var assets embed.FS
 
 // Server renders and serves the web UI.
 type Server struct {
-	auth   *auth.Authenticator
-	api    *rest.Handlers
-	tmpl   *template.Template
-	secure bool
+	auth    *auth.Authenticator
+	api     *rest.Handlers
+	tmpl    *template.Template
+	secure  bool
+	limiter *auth.RateLimiter
 }
 
 // New parses the embedded templates and returns a UI Server.
@@ -34,7 +37,13 @@ func New(a *auth.Authenticator, api *rest.Handlers, secure bool) (*Server, error
 	if err != nil {
 		return nil, err
 	}
-	return &Server{auth: a, api: api, tmpl: tmpl, secure: secure}, nil
+	return &Server{
+		auth:    a,
+		api:     api,
+		tmpl:    tmpl,
+		secure:  secure,
+		limiter: auth.NewRateLimiter(10, time.Minute),
+	}, nil
 }
 
 // Register mounts the UI routes on mux.
@@ -53,16 +62,20 @@ func (s *Server) Register(mux *http.ServeMux) {
 }
 
 type dashboardVM struct {
-	Status        rest.StatusDTO
-	Containers    []rest.ContainerDTO
-	ContainersErr string
-	Sessions      []store.Session
+	Status          rest.StatusDTO
+	Containers      []rest.ContainerDTO
+	ContainersErr   string
+	Sessions        []store.Session
+	Settings        config.Settings
+	SettingsEnabled bool
 }
 
 func (s *Server) buildVM() dashboardVM {
 	vm := dashboardVM{
-		Status:   s.api.Status(),
-		Sessions: s.api.Store().List(),
+		Status:          s.api.Status(),
+		Sessions:        s.api.Store().List(),
+		Settings:        s.api.SettingsValue(),
+		SettingsEnabled: s.api.SettingsEnabled(),
 	}
 	cs, err := s.api.Containers()
 	if err != nil {
@@ -80,7 +93,11 @@ func (s *Server) render(w http.ResponseWriter, name string, data any) {
 	}
 }
 
-func (s *Server) dashboard(w http.ResponseWriter, _ *http.Request) {
+func (s *Server) dashboard(w http.ResponseWriter, r *http.Request) {
+	// Ensure a CSRF token cookie exists so the UI can echo it on POSTs.
+	if _, err := r.Cookie(auth.CSRFCookieName); err != nil {
+		auth.SetCSRFCookie(w, auth.NewCSRFToken(), s.secure)
+	}
 	s.render(w, "layout", s.buildVM())
 }
 
@@ -106,12 +123,18 @@ func (s *Server) loginPage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
+	if !s.limiter.Allow(auth.ClientIP(r)) {
+		w.WriteHeader(http.StatusTooManyRequests)
+		s.render(w, "login", map[string]any{"Error": "Too many attempts. Please wait a moment and try again."})
+		return
+	}
 	if err := r.ParseForm(); err != nil {
 		http.Error(w, "bad form", http.StatusBadRequest)
 		return
 	}
 	if s.auth.CheckToken(r.PostFormValue("token")) {
 		s.auth.SetSession(w, s.secure)
+		auth.SetCSRFCookie(w, auth.NewCSRFToken(), s.secure)
 		http.Redirect(w, r, "/", http.StatusSeeOther)
 		return
 	}

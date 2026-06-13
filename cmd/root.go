@@ -19,6 +19,7 @@ import (
 	"github.com/grioghar/lighthouse/pkg/api/rest"
 	"github.com/grioghar/lighthouse/pkg/api/store"
 	"github.com/grioghar/lighthouse/pkg/api/update"
+	"github.com/grioghar/lighthouse/pkg/config"
 	"github.com/grioghar/lighthouse/pkg/container"
 	"github.com/grioghar/lighthouse/pkg/filters"
 	"github.com/grioghar/lighthouse/pkg/metrics"
@@ -48,6 +49,7 @@ var (
 	healthGated       bool
 	healthTimeout     time.Duration
 	sessionStore      *store.Store
+	settingsStore     *config.Store
 )
 
 var rootCmd = NewRootCommand()
@@ -170,6 +172,24 @@ func Run(c *cobra.Command, names []string) {
 	// Records recent scan sessions for the web UI / history API.
 	sessionStore = store.New(50)
 
+	// Runtime-adjustable settings (editable via the web console), seeded from the
+	// startup flags and optionally persisted to --config-file.
+	configFile, _ := c.PersistentFlags().GetString("config-file")
+	var cfgErr error
+	settingsStore, cfgErr = config.NewStore(configFile, config.Settings{
+		Cleanup:              cleanup,
+		NoRestart:            noRestart,
+		MonitorOnly:          monitorOnly,
+		NoPull:               noPull,
+		LifecycleHooks:       lifecycleHooks,
+		RollingRestart:       rollingRestart,
+		HealthGated:          healthGated,
+		HealthTimeoutSeconds: int(healthTimeout.Seconds()),
+	})
+	if cfgErr != nil {
+		log.Fatalf("Failed to load config file %q: %v", configFile, cfgErr)
+	}
+
 	if err := actions.CheckForSanity(client, filter, rollingRestart); err != nil {
 		logNotifyExit(err)
 	}
@@ -198,6 +218,8 @@ func Run(c *cobra.Command, names []string) {
 	if webAddress != "" {
 		httpAPI.Address = webAddress
 	}
+	httpAPI.TLSCert, _ = c.PersistentFlags().GetString("tls-cert")
+	httpAPI.TLSKey, _ = c.PersistentFlags().GetString("tls-key")
 
 	// triggerUpdate runs an update for the given images (empty = all watched
 	// containers). Shared by the legacy /v1/update endpoint and the web UI's
@@ -226,15 +248,16 @@ func Run(c *cobra.Command, names []string) {
 		hub := rest.NewHub()
 		log.AddHook(hub)
 		if err := httpAPI.EnableWeb(rest.Deps{
-			Version: meta.Version,
-			Client:  client,
-			Store:   sessionStore,
-			Filter:  filter,
-			Trigger: triggerUpdate,
-			Lock:    updateLock,
-			Config:  buildConfigInfo(filterDesc),
-			Hub:     hub,
-		}, sessionSecret, false); err != nil {
+			Version:  meta.Version,
+			Client:   client,
+			Store:    sessionStore,
+			Filter:   filter,
+			Trigger:  triggerUpdate,
+			Lock:     updateLock,
+			Config:   buildConfigInfo(filterDesc),
+			Settings: settingsStore,
+			Hub:      hub,
+		}, sessionSecret, httpAPI.TLSEnabled()); err != nil {
 			log.Errorf("Failed to enable web UI: %v", err)
 		}
 	}
@@ -402,18 +425,33 @@ func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, 
 
 func runUpdatesWithNotifications(filter t.Filter, trigger string) *metrics.Metric {
 	notifier.StartNotification()
+	// Behavior toggles come from the runtime settings store (web-console editable),
+	// falling back to the startup flag values if the store isn't initialized.
+	s := config.Settings{
+		Cleanup:              cleanup,
+		NoRestart:            noRestart,
+		MonitorOnly:          monitorOnly,
+		NoPull:               noPull,
+		LifecycleHooks:       lifecycleHooks,
+		RollingRestart:       rollingRestart,
+		HealthGated:          healthGated,
+		HealthTimeoutSeconds: int(healthTimeout.Seconds()),
+	}
+	if settingsStore != nil {
+		s = settingsStore.Get()
+	}
 	updateParams := t.UpdateParams{
 		Filter:          filter,
-		Cleanup:         cleanup,
-		NoRestart:       noRestart,
+		Cleanup:         s.Cleanup,
+		NoRestart:       s.NoRestart,
 		Timeout:         timeout,
-		MonitorOnly:     monitorOnly,
-		LifecycleHooks:  lifecycleHooks,
-		RollingRestart:  rollingRestart,
+		MonitorOnly:     s.MonitorOnly,
+		LifecycleHooks:  s.LifecycleHooks,
+		RollingRestart:  s.RollingRestart,
 		LabelPrecedence: labelPrecedence,
-		NoPull:          noPull,
-		HealthGated:     healthGated,
-		HealthTimeout:   healthTimeout,
+		NoPull:          s.NoPull,
+		HealthGated:     s.HealthGated,
+		HealthTimeout:   time.Duration(s.HealthTimeoutSeconds) * time.Second,
 	}
 	start := time.Now()
 	result, err := actions.Update(client, updateParams)

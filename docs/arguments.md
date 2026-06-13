@@ -466,6 +466,39 @@ Environment Variable: WATCHTOWER_SESSION_SECRET
              Default: (random)
 ```
 
+## Web console settings file
+Path to a file where settings changed via the web console (cleanup, monitor-only,
+no-pull, etc.) are persisted so they survive a restart. When unset, web-console changes
+apply for the running process only.
+
+```text
+            Argument: --config-file
+Environment Variable: WATCHTOWER_CONFIG_FILE
+                Type: String
+             Default: (none)
+```
+
+## TLS certificate
+Path to a TLS certificate to serve the web UI / JSON API over HTTPS. When set together
+with `--tls-key`, session cookies are also marked `Secure`.
+
+```text
+            Argument: --tls-cert
+Environment Variable: WATCHTOWER_TLS_CERT
+                Type: String
+             Default: (none)
+```
+
+## TLS key
+Path to the TLS private key. Required together with `--tls-cert`.
+
+```text
+            Argument: --tls-key
+Environment Variable: WATCHTOWER_TLS_KEY
+                Type: String
+             Default: (none)
+```
+
 ## Wait until timeout
 Timeout before the container is forcefully stopped. When set, this option will change the default (`10s`) wait time to the given value. An example: `--stop-timeout 30s` will set the timeout to 30 seconds.
 

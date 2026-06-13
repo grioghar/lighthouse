@@ -4,12 +4,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	dockerContainer "github.com/docker/docker/api/types/container"
 	"github.com/grioghar/lighthouse/internal/actions/mocks"
 	"github.com/grioghar/lighthouse/pkg/api/store"
+	"github.com/grioghar/lighthouse/pkg/config"
 	t "github.com/grioghar/lighthouse/pkg/types"
 )
 
@@ -23,13 +25,15 @@ func testHandlers() (*Handlers, *store.Store, chan bool) {
 	st := store.New(10)
 	lock := make(chan bool, 1)
 	lock <- true
+	settings, _ := config.NewStore("", config.Settings{Cleanup: true})
 	deps := Deps{
-		Version: "v-test",
-		Client:  mocks.CreateMockClient(data, false, false),
-		Store:   st,
-		Trigger: func(_ []string) {},
-		Lock:    lock,
-		Config:  ConfigInfo{Schedule: "@daily"},
+		Version:  "v-test",
+		Client:   mocks.CreateMockClient(data, false, false),
+		Store:    st,
+		Trigger:  func(_ []string) {},
+		Lock:     lock,
+		Config:   ConfigInfo{Schedule: "@daily"},
+		Settings: settings,
 	}
 	return New(deps), st, lock
 }
@@ -83,6 +87,39 @@ func TestSessionsEndpoint(t *testing.T) {
 	}
 	if len(out) != 1 {
 		t.Fatalf("got %d sessions, want 1", len(out))
+	}
+}
+
+func TestSettingsRoundTrip(t *testing.T) {
+	h, _, _ := testHandlers()
+
+	rec := httptest.NewRecorder()
+	h.settingsGet(rec, httptest.NewRequest(http.MethodGet, "/api/v1/settings", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("GET settings = %d, want 200", rec.Code)
+	}
+	var got config.Settings
+	_ = json.Unmarshal(rec.Body.Bytes(), &got)
+	if !got.Cleanup {
+		t.Fatalf("expected seeded Cleanup=true, got %+v", got)
+	}
+
+	rec = httptest.NewRecorder()
+	body := `{"cleanup":false,"monitorOnly":true,"healthTimeoutSeconds":30}`
+	h.settingsPost(rec, httptest.NewRequest(http.MethodPost, "/api/v1/settings", strings.NewReader(body)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("POST settings = %d, want 200 (body %s)", rec.Code, rec.Body.String())
+	}
+	if got := h.SettingsValue(); got.MonitorOnly != true || got.Cleanup != false || got.HealthTimeoutSeconds != 30 {
+		t.Fatalf("settings not applied: %+v", got)
+	}
+
+	// Invalid combination is rejected with 400.
+	rec = httptest.NewRecorder()
+	h.settingsPost(rec, httptest.NewRequest(http.MethodPost, "/api/v1/settings",
+		strings.NewReader(`{"rollingRestart":true,"monitorOnly":true}`)))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid settings = %d, want 400", rec.Code)
 	}
 }
 

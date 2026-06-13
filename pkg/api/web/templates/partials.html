@@ -30,6 +30,29 @@
 {{end}}
 {{end}}
 
+{{define "settingsForm"}}
+{{if .SettingsEnabled}}
+<form id="settings-form" onsubmit="return lh.saveSettings(event)">
+  <div class="settings-grid">
+    {{with .Settings}}
+    <label><input type="checkbox" name="cleanup" {{if .Cleanup}}checked{{end}}> Clean up old images</label>
+    <label><input type="checkbox" name="monitorOnly" {{if .MonitorOnly}}checked{{end}}> Monitor only (no updates)</label>
+    <label><input type="checkbox" name="noRestart" {{if .NoRestart}}checked{{end}}> No restart</label>
+    <label><input type="checkbox" name="noPull" {{if .NoPull}}checked{{end}}> No pull</label>
+    <label><input type="checkbox" name="lifecycleHooks" {{if .LifecycleHooks}}checked{{end}}> Lifecycle hooks</label>
+    <label><input type="checkbox" name="rollingRestart" {{if .RollingRestart}}checked{{end}}> Rolling restart</label>
+    <label><input type="checkbox" name="healthGated" {{if .HealthGated}}checked{{end}}> Health-gated rollback</label>
+    <label class="num">Health timeout (s)<input type="number" name="healthTimeoutSeconds" min="0" value="{{.HealthTimeoutSeconds}}"></label>
+    {{end}}
+  </div>
+  <div class="settings-actions">
+    <button class="btn primary" type="submit">Save settings</button>
+    <span id="settings-status" class="muted"></span>
+  </div>
+</form>
+{{else}}<p class="muted">Runtime settings are not available.</p>{{end}}
+{{end}}
+
 {{define "historyList"}}
 {{if .}}
 <table class="grid">

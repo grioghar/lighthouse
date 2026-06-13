@@ -2,8 +2,43 @@
 // pages; this handles action buttons (scan / per-container update) against the
 // JSON API and streams the live log over SSE. htmx handles fragment refreshes.
 const lh = {
+  csrf() {
+    const m = document.cookie.match(/(?:^|; )lighthouse_csrf=([^;]+)/);
+    return m ? decodeURIComponent(m[1]) : '';
+  },
   async post(url) {
-    return fetch(url, { method: 'POST', headers: { 'X-Requested-With': 'fetch' } });
+    return fetch(url, { method: 'POST', headers: { 'X-Requested-With': 'fetch', 'X-CSRF-Token': lh.csrf() } });
+  },
+  async saveSettings(e) {
+    e.preventDefault();
+    const f = document.getElementById('settings-form');
+    const st = document.getElementById('settings-status');
+    const body = {
+      cleanup: f.cleanup.checked,
+      monitorOnly: f.monitorOnly.checked,
+      noRestart: f.noRestart.checked,
+      noPull: f.noPull.checked,
+      lifecycleHooks: f.lifecycleHooks.checked,
+      rollingRestart: f.rollingRestart.checked,
+      healthGated: f.healthGated.checked,
+      healthTimeoutSeconds: parseInt(f.healthTimeoutSeconds.value || '0', 10),
+    };
+    try {
+      const r = await fetch('/api/v1/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': lh.csrf() },
+        body: JSON.stringify(body),
+      });
+      if (r.ok) {
+        st.textContent = 'saved';
+      } else {
+        const j = await r.json().catch(() => ({}));
+        st.textContent = 'error: ' + (j.error || r.status);
+      }
+    } catch {
+      st.textContent = 'error';
+    }
+    return false;
   },
   async scan() {
     const s = document.getElementById('scan-status');

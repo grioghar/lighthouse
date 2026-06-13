@@ -12,6 +12,9 @@
 <h2>Live log</h2>
 <pre id="log" class="log" aria-live="polite"></pre>
 
+<h2>Settings</h2>
+<div id="settings">{{template "settingsForm" .}}</div>
+
 <h2>Recent sessions</h2>
 <div id="history" hx-get="/ui/history" hx-trigger="refresh from:body" hx-swap="innerHTML">{{template "historyList" .Sessions}}</div>
 {{end}}

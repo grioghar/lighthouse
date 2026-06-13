@@ -24,7 +24,8 @@ func NewCSRFToken() string {
 
 // SetCSRFCookie writes the CSRF cookie. Unlike the session cookie it is NOT
 // HttpOnly, so the UI's JavaScript can read it and echo it back in the
-// X-CSRF-Token header for the double-submit check.
+// X-CSRF-Token header for the double-submit check. Its lifetime matches the
+// session cookie so the token doesn't expire mid-session and cause spurious 403s.
 func SetCSRFCookie(w http.ResponseWriter, token string, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     CSRFCookieName,
@@ -33,6 +34,17 @@ func SetCSRFCookie(w http.ResponseWriter, token string, secure bool) {
 		HttpOnly: false,
 		Secure:   secure,
 		SameSite: http.SameSiteLaxMode,
+		Expires:  Now().Add(DefaultTTL),
+	})
+}
+
+// ClearCSRFCookie expires the CSRF cookie (used on logout).
+func ClearCSRFCookie(w http.ResponseWriter) {
+	http.SetCookie(w, &http.Cookie{
+		Name:   CSRFCookieName,
+		Value:  "",
+		Path:   "/",
+		MaxAge: -1,
 	})
 }
 

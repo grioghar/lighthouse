@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	t "github.com/grioghar/lighthouse/pkg/types"
+	log "github.com/sirupsen/logrus"
 )
 
 // scan triggers an update of all watched containers.
@@ -34,7 +35,16 @@ func (h *Handlers) triggerAsync(w http.ResponseWriter, images []string) {
 	select {
 	case v := <-h.deps.Lock:
 		go func() {
-			defer func() { h.deps.Lock <- v }()
+			// Recover so a panic in the update path releases the lock and is
+			// logged, instead of crashing the whole daemon (the scheduler and
+			// legacy endpoint run inline, where panics are contained; this
+			// detached goroutine has no such safety net).
+			defer func() {
+				if r := recover(); r != nil {
+					log.Errorf("recovered from panic during API-triggered scan: %v", r)
+				}
+				h.deps.Lock <- v
+			}()
 			h.deps.Trigger(images)
 		}()
 		writeJSON(w, http.StatusAccepted, map[string]string{"status": "started"})

@@ -54,8 +54,18 @@ func (h *Hub) Broadcast(msg string) {
 	}
 }
 
-// Levels implements logrus.Hook (all levels).
-func (h *Hub) Levels() []logrus.Level { return logrus.AllLevels }
+// Levels implements logrus.Hook. Debug and Trace are deliberately excluded: the
+// trace level is documented to include credentials/tokens, and the SSE stream
+// surfaces log lines in the browser, so only Info and above are broadcast.
+func (h *Hub) Levels() []logrus.Level {
+	return []logrus.Level{
+		logrus.PanicLevel,
+		logrus.FatalLevel,
+		logrus.ErrorLevel,
+		logrus.WarnLevel,
+		logrus.InfoLevel,
+	}
+}
 
 // Fire implements logrus.Hook, broadcasting a one-line rendering of the entry.
 func (h *Hub) Fire(e *logrus.Entry) error {
@@ -86,7 +96,8 @@ func (h *Handlers) events(w http.ResponseWriter, r *http.Request) {
 	ch := h.deps.Hub.Subscribe()
 	defer h.deps.Hub.Unsubscribe(ch)
 
-	fmt.Fprint(w, "event: ping\ndata: connected\n\n")
+	// SSE comment line — keeps the connection warm without firing onmessage.
+	fmt.Fprint(w, ": connected\n\n")
 	flusher.Flush()
 
 	ctx := r.Context()

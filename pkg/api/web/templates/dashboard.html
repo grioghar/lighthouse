@@ -4,7 +4,7 @@
   <span id="scan-status" class="muted"></span>
 </section>
 
-<div id="status" hx-get="/ui/status" hx-trigger="every 10s" hx-swap="innerHTML">{{template "statusCards" .Status}}</div>
+<div id="status" hx-get="/ui/status" hx-trigger="every 10s, refresh from:body" hx-swap="innerHTML">{{template "statusCards" .Status}}</div>
 
 <h2>Watched containers</h2>
 <div id="containers" hx-get="/ui/containers" hx-trigger="refresh from:body" hx-swap="innerHTML">{{template "containersTable" .}}</div>

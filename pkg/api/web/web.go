@@ -144,5 +144,6 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
 	s.auth.ClearSession(w)
+	auth.ClearCSRFCookie(w)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

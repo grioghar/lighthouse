@@ -14,12 +14,14 @@ type windowCount struct {
 	start time.Time
 }
 
+// maxRateLimiterKeys bounds the internal map; once exceeded, expired windows are
+// swept on the next Allow so a churn of distinct keys (e.g. rotating client IPs)
+// cannot grow memory without bound.
+const maxRateLimiterKeys = 4096
+
 // RateLimiter is a concurrency-safe fixed-window limiter keyed by string. It is
-// intended for throttling login attempts by client key (e.g. IP).
-//
-// Note: entries in the internal map are not garbage-collected, so keys
-// accumulate over the process lifetime. This is acceptable for the current MVP
-// (a small set of client IPs) but is not suitable for unbounded key spaces.
+// intended for throttling login attempts by client key (e.g. IP). Expired
+// entries are swept lazily once the map grows past maxRateLimiterKeys.
 type RateLimiter struct {
 	mu     sync.Mutex
 	max    int
@@ -45,6 +47,13 @@ func (rl *RateLimiter) Allow(key string) bool {
 	defer rl.mu.Unlock()
 
 	now := rl.now()
+	if len(rl.hits) >= maxRateLimiterKeys {
+		for k, wc := range rl.hits {
+			if now.Sub(wc.start) >= rl.window {
+				delete(rl.hits, k)
+			}
+		}
+	}
 	wc := rl.hits[key]
 	if wc == nil || now.Sub(wc.start) >= rl.window {
 		rl.hits[key] = &windowCount{count: 1, start: now}

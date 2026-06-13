@@ -60,8 +60,8 @@ const lh = {
   refreshSoon() {
     setTimeout(() => {
       if (window.htmx) {
+        // #status, #containers and #history all listen for "refresh from:body".
         htmx.trigger(document.body, 'refresh');
-        htmx.trigger('#status', 'load');
       }
     }, 1500);
   },

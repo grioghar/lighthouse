@@ -1,0 +1,22 @@
+{{define "login"}}<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lighthouse — Sign in</title>
+  <link rel="icon" href="/static/favicon.png">
+  <link rel="stylesheet" href="/static/app.css">
+</head>
+<body class="login-body">
+  <form class="login-card" method="post" action="/login">
+    <img src="/static/logo.png" class="logo-lg" alt="Lighthouse">
+    <h1>Lighthouse</h1>
+    {{if .Error}}<p class="bad">{{.Error}}</p>{{end}}
+    <label>API token
+      <input type="password" name="token" autofocus autocomplete="current-password" required>
+    </label>
+    <button class="btn primary" type="submit">Sign in</button>
+    <p class="muted">Sign in with your <code>--http-api-token</code>.</p>
+  </form>
+</body>
+</html>{{end}}

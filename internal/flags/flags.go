@@ -169,6 +169,24 @@ func RegisterSystemFlags(rootCmd *cobra.Command) {
 		"How long to wait for an updated container to become healthy before rolling back")
 
 	flags.BoolP(
+		"web",
+		"",
+		envBool("WATCHTOWER_WEB"),
+		"Enable the web administration UI and JSON API")
+
+	flags.StringP(
+		"web-address",
+		"",
+		envString("WATCHTOWER_WEB_ADDRESS"),
+		"Address the web UI / JSON API binds to")
+
+	flags.StringP(
+		"session-secret",
+		"",
+		envString("WATCHTOWER_SESSION_SECRET"),
+		"Optional signing key for web session cookies (defaults to a random per-process key)")
+
+	flags.BoolP(
 		"http-api-update",
 		"",
 		envBool("WATCHTOWER_HTTP_API_UPDATE"),
@@ -460,6 +478,7 @@ func SetDefaults() {
 	viper.SetDefault("WATCHTOWER_LOG_LEVEL", "info")
 	viper.SetDefault("WATCHTOWER_LOG_FORMAT", "auto")
 	viper.SetDefault("WATCHTOWER_HEALTH_TIMEOUT", time.Second*60)
+	viper.SetDefault("WATCHTOWER_WEB_ADDRESS", ":8080")
 }
 
 // EnvConfig translates the command-line options into environment variables

@@ -11,6 +11,20 @@ of taking the torch from the (no-longer-maintained) Watchtower project: security
 hardening, a full rebrand, modernization, and a new health-gated rollback
 feature — all while staying drop-in compatible with existing Watchtower setups.
 
+## [Unreleased]
+
+### Added
+- **Web administration interface** (`--web`, off by default). A server-rendered
+  dashboard (Go templates + htmx, all assets embedded) showing watched containers,
+  daemon/schedule status, recent scan history and a live log, with actions to
+  trigger a global scan or update a single container. Sign in with the existing
+  `--http-api-token` (exchanged for a signed, httpOnly session cookie via
+  `--session-secret`); the UI binds to `--web-address` (default `:8080`).
+- **JSON API** (`/api/v1`) backing the UI and available to external clients
+  (session cookie or bearer token): `status`, `containers`, `sessions`,
+  `sessions/{id}`, `config` (secrets redacted), `scan`, `containers/{id}/update`,
+  and an SSE `events` stream for live progress.
+
 ## [1.0.1] - 2026-06-10
 
 ### Added

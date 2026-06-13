@@ -16,6 +16,8 @@ import (
 	"github.com/grioghar/lighthouse/internal/meta"
 	"github.com/grioghar/lighthouse/pkg/api"
 	apiMetrics "github.com/grioghar/lighthouse/pkg/api/metrics"
+	"github.com/grioghar/lighthouse/pkg/api/rest"
+	"github.com/grioghar/lighthouse/pkg/api/store"
 	"github.com/grioghar/lighthouse/pkg/api/update"
 	"github.com/grioghar/lighthouse/pkg/container"
 	"github.com/grioghar/lighthouse/pkg/filters"
@@ -45,6 +47,7 @@ var (
 	labelPrecedence   bool
 	healthGated       bool
 	healthTimeout     time.Duration
+	sessionStore      *store.Store
 )
 
 var rootCmd = NewRootCommand()
@@ -164,13 +167,16 @@ func Run(c *cobra.Command, names []string) {
 
 	awaitDockerClient()
 
+	// Records recent scan sessions for the web UI / history API.
+	sessionStore = store.New(50)
+
 	if err := actions.CheckForSanity(client, filter, rollingRestart); err != nil {
 		logNotifyExit(err)
 	}
 
 	if runOnce {
 		writeStartupMessage(c, time.Time{}, filterDesc)
-		runUpdatesWithNotifications(filter)
+		runUpdatesWithNotifications(filter, store.TriggerStartup)
 		notifier.Close()
 		os.Exit(0)
 		return
@@ -184,17 +190,29 @@ func Run(c *cobra.Command, names []string) {
 	updateLock := make(chan bool, 1)
 	updateLock <- true
 
+	enableWeb, _ := c.PersistentFlags().GetBool("web")
+	webAddress, _ := c.PersistentFlags().GetString("web-address")
+	sessionSecret, _ := c.PersistentFlags().GetString("session-secret")
+
 	httpAPI := api.New(apiToken)
+	if webAddress != "" {
+		httpAPI.Address = webAddress
+	}
+
+	// triggerUpdate runs an update for the given images (empty = all watched
+	// containers). Shared by the legacy /v1/update endpoint and the web UI's
+	// scan actions; the caller is responsible for holding the update lock.
+	triggerUpdate := func(images []string) {
+		metric := runUpdatesWithNotifications(filters.FilterByImage(images, filter), store.TriggerAPI)
+		metrics.RegisterScan(metric)
+	}
 
 	if enableUpdateAPI {
-		updateHandler := update.New(func(images []string) {
-			metric := runUpdatesWithNotifications(filters.FilterByImage(images, filter))
-			metrics.RegisterScan(metric)
-		}, updateLock)
+		updateHandler := update.New(triggerUpdate, updateLock)
 		httpAPI.RegisterFunc(updateHandler.Path, updateHandler.Handle)
 		// If polling isn't enabled the scheduler is never started, and
 		// we need to trigger the startup messages manually.
-		if !unblockHTTPAPI {
+		if !unblockHTTPAPI && !enableWeb {
 			writeStartupMessage(c, time.Time{}, filterDesc)
 		}
 	}
@@ -204,7 +222,28 @@ func Run(c *cobra.Command, names []string) {
 		httpAPI.RegisterHandler(metricsHandler.Path, metricsHandler.Handle)
 	}
 
-	if err := httpAPI.Start(enableUpdateAPI && !unblockHTTPAPI); err != nil && !errors.Is(err, http.ErrServerClosed) {
+	if enableWeb {
+		hub := rest.NewHub()
+		log.AddHook(hub)
+		if err := httpAPI.EnableWeb(rest.Deps{
+			Version: meta.Version,
+			Client:  client,
+			Store:   sessionStore,
+			Filter:  filter,
+			Trigger: triggerUpdate,
+			Lock:    updateLock,
+			Config:  buildConfigInfo(filterDesc),
+			Hub:     hub,
+		}, sessionSecret, false); err != nil {
+			log.Errorf("Failed to enable web UI: %v", err)
+		}
+	}
+
+	// Block on the HTTP server only when it is the sole long-running task
+	// (update API enabled, no periodic polls, and no web UI keeping the
+	// scheduler alive).
+	blockOnAPI := enableUpdateAPI && !unblockHTTPAPI && !enableWeb
+	if err := httpAPI.Start(blockOnAPI); err != nil && !errors.Is(err, http.ErrServerClosed) {
 		log.Error("failed to start API", err)
 	}
 
@@ -327,7 +366,7 @@ func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, 
 			select {
 			case v := <-lock:
 				defer func() { lock <- v }()
-				metric := runUpdatesWithNotifications(filter)
+				metric := runUpdatesWithNotifications(filter, store.TriggerSchedule)
 				metrics.RegisterScan(metric)
 			default:
 				// Update was skipped
@@ -361,7 +400,7 @@ func runUpgradesOnSchedule(c *cobra.Command, filter t.Filter, filtering string, 
 	return nil
 }
 
-func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
+func runUpdatesWithNotifications(filter t.Filter, trigger string) *metrics.Metric {
 	notifier.StartNotification()
 	updateParams := t.UpdateParams{
 		Filter:          filter,
@@ -376,9 +415,13 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		HealthGated:     healthGated,
 		HealthTimeout:   healthTimeout,
 	}
+	start := time.Now()
 	result, err := actions.Update(client, updateParams)
 	if err != nil {
 		log.Error(err)
+	}
+	if sessionStore != nil {
+		sessionStore.Record(result, start, time.Since(start), trigger)
 	}
 	notifier.SendNotification(result)
 	metricResults := metrics.NewMetric(result)
@@ -388,4 +431,25 @@ func runUpdatesWithNotifications(filter t.Filter) *metrics.Metric {
 		"Failed":  metricResults.Failed,
 	}).Info("Session done")
 	return metricResults
+}
+
+// buildConfigInfo returns a redacted, read-only snapshot of the running
+// configuration for the web UI / config API. It intentionally contains no
+// secrets (API token, notification URLs/passwords).
+func buildConfigInfo(filtering string) rest.ConfigInfo {
+	return rest.ConfigInfo{
+		Schedule:       scheduleSpec,
+		Filtering:      filtering,
+		Cleanup:        cleanup,
+		NoRestart:      noRestart,
+		NoPull:         noPull,
+		MonitorOnly:    monitorOnly,
+		LabelEnable:    enableLabel,
+		RollingRestart: rollingRestart,
+		LifecycleHooks: lifecycleHooks,
+		HealthGated:    healthGated,
+		HealthTimeout:  healthTimeout.String(),
+		Scope:          scope,
+		Notifiers:      notifier.GetNames(),
+	}
 }

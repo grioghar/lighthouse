@@ -64,6 +64,11 @@ func NewStore(path string, defaults Settings) (*Store, error) {
 			if err := json.Unmarshal(data, &loaded); err != nil {
 				return nil, fmt.Errorf("config: parsing settings file %q: %w", path, err)
 			}
+			// Validate on load too: a hand-edited or corrupted file would
+			// otherwise install a combination the API itself would reject.
+			if err := loaded.validate(); err != nil {
+				return nil, fmt.Errorf("config: settings file %q is invalid: %w", path, err)
+			}
 			s.current = loaded
 		case os.IsNotExist(err):
 			// No file yet: keep defaults. A later Set will create it.

@@ -114,7 +114,7 @@ func (client dockerClient) ListContainers(fn t.Filter) ([]t.Container, error) {
 	filter := client.createListFilter()
 	containers, err := client.api.ContainerList(
 		bg,
-		types.ContainerListOptions{
+		container.ListOptions{
 			Filters: filter,
 		})
 
@@ -211,7 +211,7 @@ func (client dockerClient) StopContainer(c t.Container, timeout time.Duration) e
 	} else {
 		log.Debugf("Removing container %s", shortID)
 
-		if err := client.api.ContainerRemove(bg, idStr, types.ContainerRemoveOptions{Force: true, RemoveVolumes: client.RemoveVolumes}); err != nil {
+		if err := client.api.ContainerRemove(bg, idStr, container.RemoveOptions{Force: true, RemoveVolumes: client.RemoveVolumes}); err != nil {
 			if sdkClient.IsErrNotFound(err) {
 				log.Debugf("Container %s not found, skipping removal.", shortID)
 				return nil
@@ -322,7 +322,7 @@ func (client dockerClient) doStartContainer(bg context.Context, c t.Container, c
 	name := c.Name()
 
 	log.Debugf("Starting container %s (%s)", name, t.ContainerID(creation.ID).ShortID())
-	err := client.api.ContainerStart(bg, creation.ID, types.ContainerStartOptions{})
+	err := client.api.ContainerStart(bg, creation.ID, container.StartOptions{})
 	if err != nil {
 		return err
 	}

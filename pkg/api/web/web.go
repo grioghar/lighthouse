@@ -143,7 +143,13 @@ func (s *Server) loginSubmit(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) logout(w http.ResponseWriter, r *http.Request) {
-	s.auth.ClearSession(w)
-	auth.ClearCSRFCookie(w)
+	// Logout changes state, so it needs the same CSRF proof as any other POST;
+	// without it any page could force-log-out a signed-in admin.
+	if !auth.ValidCSRF(r) {
+		http.Error(w, "missing or invalid CSRF token", http.StatusForbidden)
+		return
+	}
+	s.auth.ClearSession(w, s.secure)
+	auth.ClearCSRFCookie(w, s.secure)
 	http.Redirect(w, r, "/login", http.StatusSeeOther)
 }

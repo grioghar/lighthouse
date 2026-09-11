@@ -188,3 +188,29 @@ func TestPullRejectsDigestReference(t *testing.T) {
 		t.Fatal("digest reference should be rejected")
 	}
 }
+
+func TestPlatformDigestPicksTheArchNotTheIndex(t *testing.T) {
+	// A registry HEAD on a multi-arch tag reports the index digest, but Proxmox
+	// stores the platform manifest's. Comparing those marks every multi-arch
+	// guest permanently outdated, so the index must be resolved down first.
+	body := []byte(`{"mediaType":"application/vnd.oci.image.index.v1+json","manifests":[
+	  {"digest":"sha256:amd","platform":{"os":"linux","architecture":"amd64"}},
+	  {"digest":"sha256:unknown","platform":{"os":"unknown","architecture":"unknown"}},
+	  {"digest":"sha256:arm","platform":{"os":"linux","architecture":"arm64"}}]}`)
+	got, err := PlatformDigest(body, "sha256:theindex", "linux", "amd64")
+	if err != nil || got != "sha256:amd" {
+		t.Fatalf("got %q err %v, want sha256:amd", got, err)
+	}
+	if got, _ := PlatformDigest(body, "sha256:theindex", "linux", "arm64"); got != "sha256:arm" {
+		t.Fatalf("arm64 lookup gave %q", got)
+	}
+	if _, err := PlatformDigest(body, "sha256:theindex", "linux", "riscv64"); err == nil {
+		t.Fatal("missing platform should error, not silently pick one")
+	}
+	// Single-platform manifest: fall back to the tag's own digest.
+	single := []byte(`{"mediaType":"application/vnd.oci.image.manifest.v1+json","config":{}}`)
+	got, err = PlatformDigest(single, "sha256:plain", "linux", "amd64")
+	if err != nil || got != "sha256:plain" {
+		t.Fatalf("single-platform gave %q err %v", got, err)
+	}
+}

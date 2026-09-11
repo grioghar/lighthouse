@@ -18,8 +18,9 @@ import (
 // within the permitted alphabet -- at the cost of being unreadable in the UI,
 // which is why HumanTag is written alongside it.
 const (
-	refTagPrefix   = "lighthouse-image-"
-	humanTagPrefix = "lighthouse-src-"
+	refTagPrefix    = "lighthouse-image-"
+	humanTagPrefix  = "lighthouse-src-"
+	digestTagPrefix = "lighthouse-digest-"
 )
 
 // EncodeRef renders an OCI reference as a Proxmox-safe guest tag.
@@ -116,4 +117,75 @@ func (c *Client) InstalledDigestOnNode(ctx context.Context, templatePath string)
 		return "", fmt.Errorf("proxmox: %s lists no manifests", templatePath)
 	}
 	return idx.Manifests[0].Digest, nil
+}
+
+// manifestIndex is a multi-arch image index as returned by a registry.
+type manifestIndex struct {
+	MediaType string `json:"mediaType"`
+	Manifests []struct {
+		Digest   string `json:"digest"`
+		Platform struct {
+			OS           string `json:"os"`
+			Architecture string `json:"architecture"`
+		} `json:"platform"`
+	} `json:"manifests"`
+}
+
+// PlatformDigest picks the digest to compare an installed image against.
+//
+// This is the difference between a working check and one that always reports
+// drift. A registry HEAD on a multi-arch tag returns the digest of the *index*,
+// while Proxmox stores the digest of the single platform manifest it actually
+// pulled. Those are never equal, so comparing them marks every multi-arch
+// guest permanently outdated -- and under recreate, rebuilds it forever.
+//
+// Given an index, return the sub-manifest matching os/arch. Given a plain
+// manifest, fall back to the digest the registry reported for the tag.
+func PlatformDigest(body []byte, headerDigest, goos, goarch string) (string, error) {
+	var idx manifestIndex
+	if err := json.Unmarshal(body, &idx); err != nil {
+		return "", fmt.Errorf("proxmox: decoding manifest: %w", err)
+	}
+	if len(idx.Manifests) == 0 {
+		// A single-platform manifest: the tag's own digest is the right thing.
+		if headerDigest == "" {
+			return "", fmt.Errorf("proxmox: registry returned no digest for a single-platform manifest")
+		}
+		return headerDigest, nil
+	}
+	for _, m := range idx.Manifests {
+		// Skip attestation/provenance entries, which carry unknown/unknown.
+		if m.Platform.OS == goos && m.Platform.Architecture == goarch {
+			return m.Digest, nil
+		}
+	}
+	return "", fmt.Errorf("proxmox: image index has no %s/%s manifest", goos, goarch)
+}
+
+// EncodeDigest records an installed manifest digest as a guest tag. The hex
+// body of a sha256 digest is already a legal tag, so only the algorithm
+// prefix needs removing.
+func EncodeDigest(digest string) string {
+	return digestTagPrefix + strings.TrimPrefix(digest, "sha256:")
+}
+
+// DecodeDigest recovers a recorded digest from a guest tag.
+//
+// Recording the digest on the guest matters because the alternative -- reading
+// it back out of the template -- assumes the template is still on the node and
+// still named after the current tag. Templates are large and routinely pruned,
+// and retagging a guest changes the derived filename, so that assumption
+// breaks in normal use.
+func DecodeDigest(tag string) (string, bool) {
+	if !strings.HasPrefix(tag, digestTagPrefix) {
+		return "", false
+	}
+	hexBody := strings.TrimPrefix(tag, digestTagPrefix)
+	if len(hexBody) != 64 {
+		return "", false
+	}
+	if _, err := hex.DecodeString(hexBody); err != nil {
+		return "", false
+	}
+	return "sha256:" + hexBody, true
 }

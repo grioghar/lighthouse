@@ -3,8 +3,10 @@ package cmd
 import (
 	"context"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
+	"strings"
 	"text/tabwriter"
 	"time"
 
@@ -13,7 +15,6 @@ import (
 
 	"github.com/grioghar/lighthouse/pkg/proxmox"
 	"github.com/grioghar/lighthouse/pkg/registry/auth"
-	"github.com/grioghar/lighthouse/pkg/registry/digest"
 )
 
 var proxmoxCommand = NewProxmoxCommand()
@@ -94,7 +95,8 @@ func runProxmox(cmd *cobra.Command, _ []string) error {
 		if image == "" {
 			return fmt.Errorf("--tag-guest needs --image")
 		}
-		return tagGuest(ctx, client, vmid, image)
+		tmplDir, _ := f.GetString("template-dir")
+		return tagGuest(ctx, client, vmid, image, tmplDir)
 	}
 	if len(modes) == 0 {
 		return fmt.Errorf("--mode selects nothing; pass oci, recreate and/or packages")
@@ -105,10 +107,11 @@ func runProxmox(cmd *cobra.Command, _ []string) error {
 	tmplDir, _ := f.GetString("template-dir")
 	dryRun, _ := f.GetBool("dry-run")
 
+	goos, goarch := nodePlatform(ctx, client)
 	u := &proxmox.Updater{
 		Client:      client,
 		Modes:       modes,
-		Resolver:    registryResolver{auth: regAuth},
+		Resolver:    registryResolver{auth: regAuth, goos: goos, goarch: goarch},
 		TemplateDir: tmplDir,
 		Storage:     storage,
 		DryRun:      dryRun,
@@ -120,7 +123,7 @@ func runProxmox(cmd *cobra.Command, _ []string) error {
 	return report(results, dryRun)
 }
 
-func tagGuest(ctx context.Context, c *proxmox.Client, vmid int, image string) error {
+func tagGuest(ctx context.Context, c *proxmox.Client, vmid int, image, templateDir string) error {
 	cfg, err := c.Config(ctx, vmid)
 	if err != nil {
 		return err
@@ -129,11 +132,25 @@ func tagGuest(ctx context.Context, c *proxmox.Client, vmid int, image string) er
 	// Drop any previous reference tag so re-tagging replaces rather than stacks.
 	var kept []string
 	for _, t := range splitTags(tags) {
-		if _, ours := proxmox.DecodeRef(t); !ours {
+		_, isRef := proxmox.DecodeRef(t)
+		_, isDigest := proxmox.DecodeDigest(t)
+		if !isRef && !isDigest && !strings.HasPrefix(t, "lighthouse-src-") {
 			kept = append(kept, t)
 		}
 	}
 	kept = append(kept, proxmox.EncodeRef(image), proxmox.HumanTag(image))
+
+	// Record what is installed now, read from the template while it is still
+	// here. Without this the check has to re-derive the filename from the tag
+	// later, which fails once the template is pruned or the guest re-tagged.
+	tmpl := templateDir + "/" + proxmox.TemplateFile(image)
+	if d, err := c.InstalledDigestOnNode(ctx, tmpl); err == nil {
+		kept = append(kept, proxmox.EncodeDigest(d))
+		fmt.Printf("recorded installed digest %s\n", d)
+	} else {
+		fmt.Printf("warning: could not read %s, so no digest was recorded; "+
+			"the check will fall back to the template: %v\n", tmpl, err)
+	}
 	if _, err := c.Run.Run(ctx, "pct", "set", fmt.Sprint(vmid), "--tags", joinTags(kept)); err != nil {
 		return err
 	}
@@ -208,9 +225,13 @@ func report(results []proxmox.Result, dryRun bool) error {
 	return nil
 }
 
-// registryResolver resolves a bare image reference to its current manifest
-// digest, reusing the same auth and digest code the Docker path uses.
-type registryResolver struct{ auth string }
+// registryResolver resolves a bare image reference to the manifest digest for
+// one platform, reusing the auth code the Docker path uses.
+type registryResolver struct {
+	auth   string
+	goos   string
+	goarch string
+}
 
 func (r registryResolver) Digest(_ context.Context, reference string) (string, error) {
 	named, err := ref.ParseNormalizedNamed(reference)
@@ -224,21 +245,66 @@ func (r registryResolver) Digest(_ context.Context, reference string) (string, e
 	}
 
 	challengeURL := auth.GetChallengeURL(named)
-	req, err := auth.GetChallengeRequest(challengeURL)
+	creq, err := auth.GetChallengeRequest(challengeURL)
 	if err != nil {
 		return "", err
 	}
-	res, err := (&http.Client{Timeout: 30 * time.Second}).Do(req)
+	client := &http.Client{Timeout: 30 * time.Second}
+	cres, err := client.Do(creq)
+	if err != nil {
+		return "", err
+	}
+	challenge := cres.Header.Get("WWW-Authenticate")
+	cres.Body.Close()
+
+	token, err := auth.GetBearerHeader(challenge, named, r.auth)
+	if err != nil {
+		return "", err
+	}
+
+	manifestURL := fmt.Sprintf("%s://%s/v2/%s/manifests/%s",
+		challengeURL.Scheme, challengeURL.Host, ref.Path(named), tag)
+	req, err := http.NewRequest(http.MethodGet, manifestURL, nil)
+	if err != nil {
+		return "", err
+	}
+	req.Header.Set("Authorization", token)
+	// GET, not HEAD: a HEAD only yields the index digest, and the body is what
+	// lets us resolve down to the platform manifest Proxmox actually installed.
+	req.Header.Set("Accept", strings.Join([]string{
+		"application/vnd.oci.image.index.v1+json",
+		"application/vnd.docker.distribution.manifest.list.v2+json",
+		"application/vnd.oci.image.manifest.v1+json",
+		"application/vnd.docker.distribution.manifest.v2+json",
+	}, ","))
+	res, err := client.Do(req)
 	if err != nil {
 		return "", err
 	}
 	defer res.Body.Close()
-
-	token, err := auth.GetBearerHeader(res.Header.Get("WWW-Authenticate"), named, r.auth)
+	if res.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("registry returned %s for %s", res.Status, manifestURL)
+	}
+	body, err := io.ReadAll(io.LimitReader(res.Body, 4<<20))
 	if err != nil {
 		return "", err
 	}
-	manifestURL := fmt.Sprintf("%s://%s/v2/%s/manifests/%s",
-		challengeURL.Scheme, challengeURL.Host, ref.Path(named), tag)
-	return digest.GetDigest(manifestURL, token)
+	return proxmox.PlatformDigest(body, res.Header.Get("Docker-Content-Digest"), r.goos, r.goarch)
+}
+
+// nodePlatform asks the node what architecture it is, so the comparison is
+// made against the manifest Proxmox would actually pull there.
+func nodePlatform(ctx context.Context, c *proxmox.Client) (string, string) {
+	out, err := c.Run.Run(ctx, "uname", "-m")
+	if err != nil {
+		return "linux", "amd64"
+	}
+	switch strings.TrimSpace(out) {
+	case "aarch64", "arm64":
+		return "linux", "arm64"
+	case "armv7l":
+		return "linux", "arm"
+	default:
+		return "linux", "amd64"
+	}
 }

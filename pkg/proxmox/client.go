@@ -22,6 +22,9 @@ type Guest struct {
 	// namespace (docker.io/library/alpine:3.20 -> alpine_3.20.tar), so the
 	// reference cannot be recovered after the fact -- it has to be recorded.
 	Image string
+	// Digest is the manifest digest installed when the guest was tagged, so a
+	// check does not depend on the template still existing on the node.
+	Digest string
 }
 
 // OCIManaged reports whether this guest opted into image-digest tracking.
@@ -69,6 +72,9 @@ func (c *Client) ListGuests(ctx context.Context) ([]Guest, error) {
 			g.Tags = append(g.Tags, t)
 			if ref, ok := DecodeRef(t); ok {
 				g.Image = ref
+			}
+			if d, ok := DecodeDigest(t); ok {
+				g.Digest = d
 			}
 		}
 		guests = append(guests, g)

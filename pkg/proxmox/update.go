@@ -107,11 +107,17 @@ func (u *Updater) Check(ctx context.Context) ([]Result, error) {
 
 func (u *Updater) checkOCI(ctx context.Context, g Guest) Result {
 	r := Result{Guest: g, Kind: ModeOCI}
-	tmpl := u.TemplateDir + "/" + TemplateFile(g.Image)
-	installed, err := u.Client.InstalledDigestOnNode(ctx, tmpl)
-	if err != nil {
-		r.Err = fmt.Errorf("installed digest: %w", err)
-		return r
+	installed := g.Digest
+	if installed == "" {
+		// No digest was recorded, so fall back to the template. This only
+		// works while the template is still present and still named after the
+		// current tag; re-tag the guest to record the digest properly.
+		tmpl := u.TemplateDir + "/" + TemplateFile(g.Image)
+		var err error
+		if installed, err = u.Client.InstalledDigestOnNode(ctx, tmpl); err != nil {
+			r.Err = fmt.Errorf("no recorded digest and template unreadable: %w", err)
+			return r
+		}
 	}
 	r.Installed = installed
 

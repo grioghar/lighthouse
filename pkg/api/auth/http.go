@@ -83,13 +83,17 @@ func (a *Authenticator) SetSession(w http.ResponseWriter, secure bool) {
 	})
 }
 
-// ClearSession expires the session cookie.
-func (a *Authenticator) ClearSession(w http.ResponseWriter) {
+// ClearSession expires the session cookie. secure must match the value used in
+// SetSession: a clearing cookie whose attributes differ from the original can
+// be treated as a separate cookie and leave the original in place.
+func (a *Authenticator) ClearSession(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{
 		Name:     SessionCookieName,
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,
 	})
 }

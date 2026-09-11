@@ -53,6 +53,19 @@ func (rl *RateLimiter) Allow(key string) bool {
 				delete(rl.hits, k)
 			}
 		}
+		// Sweeping only expired windows is not a bound: a flood of distinct
+		// keys inside one window expires nothing and the map keeps growing.
+		// Evict oldest-first until we are back under the cap.
+		for len(rl.hits) >= maxRateLimiterKeys {
+			var oldestKey string
+			var oldest time.Time
+			for k, wc := range rl.hits {
+				if oldestKey == "" || wc.start.Before(oldest) {
+					oldestKey, oldest = k, wc.start
+				}
+			}
+			delete(rl.hits, oldestKey)
+		}
 	}
 	wc := rl.hits[key]
 	if wc == nil || now.Sub(wc.start) >= rl.window {

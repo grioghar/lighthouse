@@ -38,13 +38,17 @@ func SetCSRFCookie(w http.ResponseWriter, token string, secure bool) {
 	})
 }
 
-// ClearCSRFCookie expires the CSRF cookie (used on logout).
-func ClearCSRFCookie(w http.ResponseWriter) {
+// ClearCSRFCookie expires the CSRF cookie (used on logout). secure must match
+// the value used in SetCSRFCookie, or the clearing cookie may be treated as a
+// different cookie and leave the original in place.
+func ClearCSRFCookie(w http.ResponseWriter, secure bool) {
 	http.SetCookie(w, &http.Cookie{
-		Name:   CSRFCookieName,
-		Value:  "",
-		Path:   "/",
-		MaxAge: -1,
+		Name:     CSRFCookieName,
+		Value:    "",
+		Path:     "/",
+		Secure:   secure,
+		SameSite: http.SameSiteLaxMode,
+		MaxAge:   -1,
 	})
 }
 

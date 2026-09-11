@@ -36,13 +36,20 @@ type Authenticator struct {
 // single instance; supply a stable secret to keep sessions valid across restarts
 // or multiple replicas.
 func New(token, secret string) *Authenticator {
-	key := []byte(secret)
-	if len(key) == 0 {
-		key = make([]byte, 32)
+	base := []byte(secret)
+	if len(base) == 0 {
+		base = make([]byte, 32)
 		// crypto/rand.Read never returns an error on supported platforms.
-		_, _ = rand.Read(key)
+		_, _ = rand.Read(base)
 	}
-	return &Authenticator{token: token, key: key, ttl: DefaultTTL}
+	// Derive the signing key from the secret AND the API token, so rotating the
+	// token invalidates every outstanding session. Without this, a stable
+	// secret means a revoked credential leaves working sessions behind -- you
+	// cannot actually lock anyone out by changing the token.
+	mac := hmac.New(sha256.New, base)
+	mac.Write([]byte("lighthouse-session-v1\x00"))
+	mac.Write([]byte(token))
+	return &Authenticator{token: token, key: mac.Sum(nil), ttl: DefaultTTL}
 }
 
 // TTL returns the session lifetime.

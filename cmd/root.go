@@ -81,6 +81,8 @@ func init() {
 func Execute() {
 	rootCmd.AddCommand(notifyUpgradeCommand)
 	rootCmd.AddCommand(proxmoxCommand)
+	rootCmd.AddCommand(agentCommand)
+	rootCmd.AddCommand(providersCommand)
 	if err := rootCmd.Execute(); err != nil {
 		log.Fatal(err)
 	}

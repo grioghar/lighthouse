@@ -1,0 +1,55 @@
+# Lighthouse agent image: the multi-provider updater.
+#
+# Why this is not the scratch image in dockerfiles/Dockerfile:
+#
+# The agent reaches Proxmox nodes over ssh, because pct and pvesh exist only on
+# the node and cannot be installed anywhere else. That needs an ssh client, and
+# a scratch image has no binaries at all -- a scratch build with --ssh-host
+# fails at the first guest with "ssh: executable file not found", which reads
+# like a bug rather than a missing dependency.
+#
+# So this image is Alpine-based and carries exactly what the providers shell
+# out to: ssh for node access, and nothing else. It is still a single static Go
+# binary; the base exists for the client.
+#
+# Build:  docker build -f dockerfiles/Dockerfile.agent -t lighthouse-agent .
+# Run:    see deploy/docker/compose.agent.yml
+
+FROM golang:1.25-alpine AS builder
+
+ARG VERSION=agent
+
+RUN apk add --no-cache ca-certificates tzdata
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+
+RUN CGO_ENABLED=0 GOOS=linux go build -a \
+    -ldflags "-extldflags '-static' -X github.com/grioghar/lighthouse/internal/meta.Version=${VERSION}" \
+    -o /out/lighthouse .
+
+FROM alpine:3.20
+
+# openssh-client: node access. ca-certificates: registry TLS. tzdata: cron
+# schedules are interpreted in the container's zone, so a wrong one runs the
+# nightly check at the wrong hour.
+RUN apk add --no-cache ca-certificates openssh-client tzdata \
+ && adduser -D -u 10001 -h /home/lighthouse lighthouse
+
+LABEL "lighthouse"="true"
+LABEL "lighthouse.agent"="true"
+# The legacy label keeps tooling that detects the updater container working.
+LABEL "com.centurylinklabs.watchtower"="true"
+
+COPY --from=builder /out/lighthouse /usr/local/bin/lighthouse
+
+# Runs as root by default because the Docker socket and any mounted ssh key are
+# usually root-owned. Override with `user:` in compose to run unprivileged; the
+# lighthouse user above exists for that.
+EXPOSE 8080
+HEALTHCHECK CMD [ "/usr/local/bin/lighthouse", "--health-check" ]
+
+ENTRYPOINT ["/usr/local/bin/lighthouse"]
+CMD ["agent", "--help"]

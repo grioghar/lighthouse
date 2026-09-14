@@ -13,6 +13,7 @@ import (
 	ref "github.com/distribution/reference"
 	"github.com/spf13/cobra"
 
+	"github.com/grioghar/lighthouse/pkg/execx"
 	"github.com/grioghar/lighthouse/pkg/proxmox"
 	"github.com/grioghar/lighthouse/pkg/registry/auth"
 )
@@ -151,7 +152,7 @@ func tagGuest(ctx context.Context, c *proxmox.Client, vmid int, image, templateD
 		fmt.Printf("warning: could not read %s, so no digest was recorded; "+
 			"the check will fall back to the template: %v\n", tmpl, err)
 	}
-	if _, err := c.Run.Run(ctx, "pct", "set", fmt.Sprint(vmid), "--tags", joinTags(kept)); err != nil {
+	if _, err := execx.Output(ctx, c.Run, "pct", "set", fmt.Sprint(vmid), "--tags", joinTags(kept)); err != nil {
 		return err
 	}
 	fmt.Printf("CT %d now tracks %s\n", vmid, image)
@@ -295,7 +296,7 @@ func (r registryResolver) Digest(_ context.Context, reference string) (string, e
 // nodePlatform asks the node what architecture it is, so the comparison is
 // made against the manifest Proxmox would actually pull there.
 func nodePlatform(ctx context.Context, c *proxmox.Client) (string, string) {
-	out, err := c.Run.Run(ctx, "uname", "-m")
+	out, err := execx.Output(ctx, c.Run, "uname", "-m")
 	if err != nil {
 		return "linux", "amd64"
 	}

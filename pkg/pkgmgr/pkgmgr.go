@@ -111,9 +111,19 @@ type Backend struct {
 	Name string
 	// Binary is what detection looks for on PATH.
 	Binary string
-	// Refresh updates the package index. Empty means the manager has no
+	// RefreshCmd updates the package index. Empty means the manager has no
 	// separate refresh step, or folds it into List.
 	RefreshCmd string
+	// RefreshWarnings are substrings that mean the refresh partially failed
+	// even though it exited zero.
+	//
+	// This is not defensive programming, it is apt: `apt-get update` exits 0
+	// when a repository is unreachable and reports it only as a W: line. Since
+	// a stale index reports "up to date", exit-code-only detection would turn
+	// a broken repo into a confident wrong answer -- and apt is the manager
+	// most of a Proxmox fleet runs. apk and zypper exit non-zero and need
+	// nothing here.
+	RefreshWarnings []string
 	// List prints the pending upgrades in this manager's native format.
 	ListCmd string
 	// ListOKCodes are exit codes from List that mean success. dnf and zypper
@@ -186,10 +196,10 @@ func (b *Backend) Check(ctx context.Context, r execx.Runner) (Status, error) {
 		// A failed refresh is not fatal. A guest with one unreachable third-
 		// party repo still has a usable index for everything else, and
 		// refusing to report anything because of it is worse than reporting
-		// against a slightly stale index.
-		if res, err := execx.Script(ctx, r, b.RefreshCmd); err == nil && res.OK() {
-			st.Refreshed = true
-		}
+		// against a slightly stale index. But the caller has to be told, or
+		// it will present a stale "up to date" as a confident answer.
+		res, err := execx.Script(ctx, r, b.RefreshCmd)
+		st.Refreshed = err == nil && res.OK() && !b.refreshWarned(res)
 	}
 
 	res, err := execx.Script(ctx, r, b.ListCmd)
@@ -203,6 +213,23 @@ func (b *Backend) Check(ctx context.Context, r execx.Runner) (Status, error) {
 	st.Pending = b.Parse(res.Stdout)
 	st.Reboot = b.reboot(ctx, r)
 	return st, nil
+}
+
+// refreshWarned reports whether a zero-exit refresh actually failed in part.
+func (b *Backend) refreshWarned(res execx.Result) bool {
+	if len(b.RefreshWarnings) == 0 {
+		return false
+	}
+	// Both streams: apt writes its W: lines to stderr, but that is a detail
+	// of apt rather than a rule, and matching only one stream is how this
+	// silently stops working.
+	combined := res.Stdout + "\n" + res.Stderr
+	for _, w := range b.RefreshWarnings {
+		if strings.Contains(combined, w) {
+			return true
+		}
+	}
+	return false
 }
 
 func (b *Backend) listOK(code int) bool {

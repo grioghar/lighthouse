@@ -17,8 +17,15 @@ import "strings"
 var apt = &Backend{
 	Name:   "apt",
 	Binary: "apt-get",
-	// -qq keeps the transfer log out of the output; the index still updates.
+	// -qq keeps the transfer log out of the output; the index still updates,
+	// and the W: lines below are still printed to stderr.
 	RefreshCmd: "apt-get update -qq",
+	// apt exits 0 with an unreachable repository, so the warning text is the
+	// only signal that the index is now stale.
+	RefreshWarnings: []string{
+		"Some index files failed to download",
+		"Failed to fetch",
+	},
 	// A simulated dist-upgrade is the only apt output that reports what would
 	// actually be installed, including packages pulled in by new dependencies.
 	// `apt list --upgradable` misses those, so it undercounts.
@@ -96,9 +103,10 @@ var pacman = &Backend{
 	// -Sy alone leaves a partially-updated index, which is the documented way
 	// to break an Arch system. It is acceptable only because Upgrade always
 	// does a full -Syu, never an isolated -S.
-	RefreshCmd: "pacman -Sy --noconfirm",
-	ListCmd:    "pacman -Qu 2>/dev/null",
-	UpgradeCmd: "pacman -Syu --noconfirm",
+	RefreshCmd:      "pacman -Sy --noconfirm",
+	RefreshWarnings: []string{"failed retrieving file", "failed to update"},
+	ListCmd:         "pacman -Qu 2>/dev/null",
+	UpgradeCmd:      "pacman -Syu --noconfirm",
 	// Arch has no marker file; compare the running kernel against the
 	// installed one, which is the check that actually matters.
 	RebootCmd: "inst=$(pacman -Q linux 2>/dev/null | awk '{print $2}'); " +

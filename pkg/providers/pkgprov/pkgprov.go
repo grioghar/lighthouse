@@ -104,13 +104,29 @@ func (c core) check(ctx context.Context, t update.Target) update.Result {
 	}
 	if st.Count() == 0 {
 		res.Outcome = update.UpToDate
-		res.Detail = fmt.Sprintf("%s: up to date", st.Manager)
+		res.Detail = staleNote(backend, st, fmt.Sprintf("%s: up to date", st.Manager))
 		return res
 	}
 	res.Outcome = update.Outdated
-	res.Detail = fmt.Sprintf("%s: %d pending (%s)",
-		st.Manager, st.Count(), st.Summary(c.opts.cap()))
+	res.Detail = staleNote(backend, st, fmt.Sprintf("%s: %d pending (%s)",
+		st.Manager, st.Count(), st.Summary(c.opts.cap())))
 	return res
+}
+
+// staleNote flags a result that was computed against an index we failed to
+// refresh.
+//
+// Check deliberately continues when a refresh fails, because one unreachable
+// third-party repo should not suppress the report for everything else. But the
+// result is then computed against a stale index, and "up to date" is exactly
+// the answer a stale index produces -- so saying nothing turns a soft failure
+// into a confident wrong answer. A fleet with third-party repos (docker,
+// tailscale, linuxserver) hits this the moment one of them is down.
+func staleNote(b *pkgmgr.Backend, st pkgmgr.Status, detail string) string {
+	if b.RefreshCmd == "" || st.Refreshed {
+		return detail
+	}
+	return detail + " [stale: index refresh failed, so this may undercount]"
 }
 
 // detectFailure distinguishes "this target has no package manager", which is

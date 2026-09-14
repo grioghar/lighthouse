@@ -14,6 +14,9 @@ import (
 type fake struct {
 	replies map[string]string
 	calls   []string
+	// failOn makes any command containing this substring exit non-zero, for
+	// exercising the paths that must survive a partial failure.
+	failOn string
 }
 
 func (f *fake) Run(_ context.Context, name string, args ...string) (execx.Result, error) {
@@ -25,6 +28,9 @@ func (f *fake) Run(_ context.Context, name string, args ...string) (execx.Result
 	}
 	// Longest key wins, so a specific reply beats a general one.
 	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
+	if f.failOn != "" && strings.Contains(line, f.failOn) {
+		return execx.Result{Code: 100, Stderr: "Could not resolve 'repo.example.com'"}, nil
+	}
 	for _, k := range keys {
 		if strings.Contains(line, k) {
 			return execx.Result{Stdout: f.replies[k]}, nil
@@ -205,5 +211,48 @@ func TestUnknownManagerIsRejectedAtConstruction(t *testing.T) {
 		t.Fatal("unknown manager should be rejected")
 	} else if !strings.Contains(err.Error(), "apt") {
 		t.Errorf("error should list what is valid: %v", err)
+	}
+}
+
+func TestFailedRefreshIsFlaggedAsStale(t *testing.T) {
+	// Found by running this against a live fleet: a failed refresh was silently
+	// producing a confident "up to date". A check continues past one
+	// unreachable third-party repo on purpose -- but "up to date" is exactly
+	// what a stale index reports, so the result has to say so.
+	f := &fake{replies: map[string]string{
+		"command -v apt-get": "apt\n",
+		// No reply for "apt-get update", so it returns exit 0 with no output
+		// -- which counts as refreshed. Force a failure instead.
+		"reboot-required": "no\n",
+	}}
+	// A refresh that fails: the fake returns exit 0 by default, so drive the
+	// failure through a backend whose refresh command has no match and whose
+	// runner reports non-zero.
+	f.replies["apt-get update"] = ""
+	failing := &fake{replies: f.replies, failOn: "apt-get update"}
+
+	h, err := NewHost(failing, "pve1", Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res := h.Check(context.Background(), hostTarget())
+
+	if res.Outcome != update.UpToDate {
+		t.Fatalf("want up-to-date, got %s", res.Outcome)
+	}
+	if !strings.Contains(res.Detail, "stale") {
+		t.Fatalf("a stale index must be flagged, got %q", res.Detail)
+	}
+}
+
+func TestSuccessfulRefreshIsNotFlagged(t *testing.T) {
+	h, _ := aptHost(t, map[string]string{
+		"command -v apt-get":       "apt\n",
+		"dist-upgrade 2>/dev/null": "",
+		"reboot-required":          "no\n",
+	})
+	res := h.Check(context.Background(), hostTarget())
+	if strings.Contains(res.Detail, "stale") {
+		t.Fatalf("a healthy refresh must not be flagged: %q", res.Detail)
 	}
 }

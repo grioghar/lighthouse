@@ -84,10 +84,9 @@ func runProxmox(cmd *cobra.Command, _ []string) error {
 	sshKey, _ := f.GetString("ssh-key")
 	timeout, _ := f.GetDuration("timeout")
 
-	var runner proxmox.Runner = proxmox.ExecRunner{Timeout: timeout}
-	if sshHost != "" {
-		runner = proxmox.SSHRunner{Host: sshHost, KeyFile: sshKey, Timeout: timeout}
-	}
+	// NewRunner makes the ssh-or-local choice once, so this command and the
+	// agent cannot drift apart on it.
+	runner := proxmox.NewRunner(sshHost, sshKey, timeout)
 	client := &proxmox.Client{Run: runner, Node: node}
 	ctx := context.Background()
 

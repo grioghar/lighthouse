@@ -4,8 +4,11 @@ import (
 	"archive/tar"
 	"bytes"
 	"context"
+	"sort"
 	"strings"
 	"testing"
+
+	"github.com/grioghar/lighthouse/pkg/execx"
 )
 
 func TestParseModes(t *testing.T) {
@@ -104,15 +107,22 @@ type fakeRunner struct {
 	calls   []string
 }
 
-func (f *fakeRunner) Run(_ context.Context, name string, args ...string) (string, error) {
+func (f *fakeRunner) Run(_ context.Context, name string, args ...string) (execx.Result, error) {
 	line := name + " " + strings.Join(args, " ")
 	f.calls = append(f.calls, line)
-	for k, v := range f.replies {
+	// Longest key first, so a specific reply wins over a general one: the
+	// package probe and the package listing both arrive as "pct exec".
+	keys := make([]string, 0, len(f.replies))
+	for k := range f.replies {
+		keys = append(keys, k)
+	}
+	sort.Slice(keys, func(i, j int) bool { return len(keys[i]) > len(keys[j]) })
+	for _, k := range keys {
 		if strings.Contains(line, k) {
-			return v, nil
+			return execx.Result{Stdout: f.replies[k]}, nil
 		}
 	}
-	return "", nil
+	return execx.Result{}, nil
 }
 
 type fakeResolver struct{ digest string }
@@ -158,10 +168,15 @@ func TestCheckOCIDetectsDrift(t *testing.T) {
 }
 
 func TestUnmanagedGuestGoesToPackages(t *testing.T) {
-	guests := `[{"vmid":102,"name":"debian-ct","status":"running","tags":""}]`
+	// The package half is no longer apt-specific: the guest is probed for
+	// whichever manager it has, and an Alpine guest is handled by the same
+	// code path as a Debian one.
+	guests := `[{"vmid":102,"name":"alpine-ct","status":"running","tags":""}]`
 	r := &fakeRunner{replies: map[string]string{
-		"/lxc":     guests,
-		"pct exec": "3\n",
+		"/lxc": guests,
+		// The one-round-trip probe: the guest answers with its manager.
+		"command -v apt-get": "apk\n",
+		"apk version -l":     "Installed:      Available:\nbusybox-1.36.1-r5 < 1.36.1-r7\nzlib-1.3-r0 < 1.3.1-r0\n",
 	}}
 	u := &Updater{
 		Client: &Client{Run: r, Node: "pve"},
@@ -172,11 +187,41 @@ func TestUnmanagedGuestGoesToPackages(t *testing.T) {
 	if len(res) != 1 || res[0].Kind != ModePackages {
 		t.Fatalf("expected a packages result, got %+v", res)
 	}
-	if res[0].Packages != 3 || !res[0].Outdated {
+	if res[0].Manager != "apk" {
+		t.Fatalf("manager detected as %q, want apk", res[0].Manager)
+	}
+	if res[0].Packages != 2 || !res[0].Outdated {
 		t.Fatalf("package count not parsed: %+v", res[0])
 	}
 	if !strings.Contains(res[0].Action, "would upgrade") {
 		t.Fatalf("dry run should not upgrade: %q", res[0].Action)
+	}
+	// A dry run must not reach the upgrade command.
+	for _, c := range r.calls {
+		if strings.Contains(c, "apk upgrade") {
+			t.Fatalf("dry run ran an upgrade: %q", c)
+		}
+	}
+}
+
+func TestStoppedGuestIsSkippedNotFailed(t *testing.T) {
+	// pct exec cannot enter a stopped guest. Reporting that as an error makes
+	// a normal fleet look broken -- half a homelab is stopped at any moment.
+	guests := `[{"vmid":103,"name":"off-ct","status":"stopped","tags":""}]`
+	r := &fakeRunner{replies: map[string]string{"/lxc": guests}}
+	u := &Updater{
+		Client: &Client{Run: r, Node: "pve"},
+		Modes:  Modes{ModePackages: true},
+		DryRun: true,
+	}
+	res, _ := u.Check(context.Background())
+	if len(res) != 1 || res[0].Err != nil || res[0].Outdated {
+		t.Fatalf("stopped guest should be a clean skip: %+v", res)
+	}
+	for _, c := range r.calls {
+		if strings.Contains(c, "pct exec") {
+			t.Fatalf("stopped guest was entered: %q", c)
+		}
 	}
 }
 

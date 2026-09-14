@@ -10,6 +10,8 @@ import (
 	"path"
 	"regexp"
 	"strings"
+
+	"github.com/grioghar/lighthouse/pkg/execx"
 )
 
 // Proxmox guest tags are lowercased and accept a restricted character set, so
@@ -105,7 +107,7 @@ func InstalledDigest(r io.Reader) (string, error) {
 func (c *Client) InstalledDigestOnNode(ctx context.Context, templatePath string) (string, error) {
 	// Stream just index.json rather than the whole archive: a squashed rootfs
 	// template can be gigabytes, and only the index is needed.
-	out, err := c.Run.Run(ctx, "tar", "xOf", templatePath, "index.json")
+	out, err := execx.Output(ctx, c.Run, "tar", "xOf", templatePath, "index.json")
 	if err != nil {
 		return "", err
 	}

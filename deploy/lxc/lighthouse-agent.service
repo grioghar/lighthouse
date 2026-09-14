@@ -1,0 +1,33 @@
+# Lighthouse agent as a systemd service, for an LXC guest or a bare host
+# (including the Proxmox node itself).
+#
+# Scheduling is the agent's own (--schedule), not a systemd timer, so that one
+# process holds the run lock. Two overlapping runs would have two package
+# managers contending for the same dpkg lock on the same guest.
+[Unit]
+Description=Lighthouse update agent
+Documentation=https://github.com/grioghar/lighthouse
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/lighthouse/agent.env
+ExecStart=/usr/local/bin/lighthouse agent $LIGHTHOUSE_ARGS
+Restart=on-failure
+RestartSec=30s
+
+# The agent runs package managers, so it needs root on whatever it is
+# upgrading. These limits constrain everything that is not that.
+NoNewPrivileges=true
+ProtectHome=true
+PrivateTmp=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+# ProtectSystem is deliberately NOT strict: when this runs on the node itself,
+# apt has to write to /usr and /var.
+ProtectSystem=false
+
+[Install]
+WantedBy=multi-user.target

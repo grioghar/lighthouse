@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/grioghar/lighthouse/pkg/execx"
 )
 
 // Guest is one LXC container on the node.
@@ -43,7 +45,7 @@ type Client struct {
 
 // ListGuests returns the LXC guests on the node.
 func (c *Client) ListGuests(ctx context.Context) ([]Guest, error) {
-	out, err := c.Run.Run(ctx, "pvesh", "get",
+	out, err := execx.Output(ctx, c.Run, "pvesh", "get",
 		fmt.Sprintf("/nodes/%s/lxc", c.Node), "--output-format", "json")
 	if err != nil {
 		return nil, err
@@ -84,7 +86,7 @@ func (c *Client) ListGuests(ctx context.Context) ([]Guest, error) {
 
 // Config returns a guest's configuration keys.
 func (c *Client) Config(ctx context.Context, vmid int) (map[string]string, error) {
-	out, err := c.Run.Run(ctx, "pvesh", "get",
+	out, err := execx.Output(ctx, c.Run, "pvesh", "get",
 		fmt.Sprintf("/nodes/%s/lxc/%d/config", c.Node, vmid), "--output-format", "json")
 	if err != nil {
 		return nil, err
@@ -103,7 +105,7 @@ func (c *Client) Config(ctx context.Context, vmid int) (map[string]string, error
 // ExecInGuest runs a command inside a running LXC via pct exec.
 func (c *Client) ExecInGuest(ctx context.Context, vmid int, argv ...string) (string, error) {
 	args := append([]string{"exec", strconv.Itoa(vmid), "--"}, argv...)
-	return c.Run.Run(ctx, "pct", args...)
+	return execx.Output(ctx, c.Run, "pct", args...)
 }
 
 // PullOCI pulls an image into the node's template store and returns the task's
@@ -113,7 +115,7 @@ func (c *Client) PullOCI(ctx context.Context, storage, reference string) (string
 	if strings.Contains(reference, "@") {
 		return "", fmt.Errorf("proxmox: oci-registry-pull rejects digest references (%q); use a tag", reference)
 	}
-	out, err := c.Run.Run(ctx, "pvesh", "create",
+	out, err := execx.Output(ctx, c.Run, "pvesh", "create",
 		fmt.Sprintf("/nodes/%s/storage/%s/oci-registry-pull", c.Node, storage),
 		"--reference", reference)
 	if err != nil {
@@ -143,7 +145,7 @@ func (c *Client) WaitTask(ctx context.Context, upid string, poll time.Duration) 
 		poll = 2 * time.Second
 	}
 	for {
-		out, err := c.Run.Run(ctx, "pvesh", "get",
+		out, err := execx.Output(ctx, c.Run, "pvesh", "get",
 			fmt.Sprintf("/nodes/%s/tasks/%s/status", c.Node, upid), "--output-format", "json")
 		if err != nil {
 			return err
@@ -184,3 +186,9 @@ func truncate(s string, n int) string {
 	}
 	return s[:n] + "..."
 }
+
+// Runner exposes the transport this client uses, so callers can compose
+// further hops onto it -- execx.Guest{Base: c.Runner(), VMID: n} reaches
+// inside a guest on whatever node this client happens to talk to, without
+// needing to know whether that is local or over ssh.
+func (c *Client) Runner() Runner { return c.Run }

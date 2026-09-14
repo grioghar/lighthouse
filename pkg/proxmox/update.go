@@ -2,9 +2,12 @@ package proxmox
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"strconv"
 	"strings"
+
+	"github.com/grioghar/lighthouse/pkg/execx"
+	"github.com/grioghar/lighthouse/pkg/pkgmgr"
 )
 
 // Mode selects which class of guest a run acts on. They are independent and
@@ -68,6 +71,8 @@ type Result struct {
 	Available string // OCI: manifest digest in the registry
 	Outdated  bool
 	Packages  int    // packages: count of upgradable packages
+	Manager   string // packages: which package manager was detected
+	Reboot    pkgmgr.Tristate
 	Action    string // what was done, or would be under --dry-run
 	Err       error
 }
@@ -170,42 +175,60 @@ func (u *Updater) recreate(ctx context.Context, g Guest) string {
 		"(layers are squashed, so no in-place swap exists)", g.Image, g.VMID)
 }
 
+// checkPackages runs the guest's own package manager.
+//
+// The distribution-specific half of this lives in pkg/pkgmgr, so a guest that
+// is Alpine or Rocky rather than Debian is handled by a table entry instead of
+// by this function knowing about apt. Composing execx.Guest onto the client's
+// runner is what puts the commands inside the guest, whether the node itself
+// is local or reached over ssh.
 func (u *Updater) checkPackages(ctx context.Context, g Guest) Result {
 	r := Result{Guest: g, Kind: ModePackages}
 	if g.Status != "running" {
+		// pct exec cannot enter a stopped guest, and starting one to patch it
+		// is an operator's decision, not a side effect of a scheduled check.
 		r.Action = "skipped (not running)"
 		return r
 	}
-	out, err := u.Client.ExecInGuest(ctx, g.VMID, "sh", "-lc",
-		"apt-get update -qq >/dev/null 2>&1; apt-get -s dist-upgrade 2>/dev/null | grep -c '^Inst ' || true")
+
+	inside := execx.Guest{Base: u.Client.Runner(), VMID: g.VMID}
+	backend, err := pkgmgr.Detect(ctx, inside)
+	if err != nil {
+		if errors.Is(err, pkgmgr.ErrNoManager) {
+			// Legitimate for a distroless or single-binary guest, so it is a
+			// skip rather than an error.
+			r.Action = "skipped (no supported package manager)"
+			return r
+		}
+		r.Err = fmt.Errorf("detecting package manager: %w", err)
+		return r
+	}
+
+	st, err := backend.Check(ctx, inside)
 	if err != nil {
 		r.Err = fmt.Errorf("counting upgradable packages: %w", err)
 		return r
 	}
-	n, convErr := strconv.Atoi(strings.TrimSpace(lastLine(out)))
-	if convErr != nil {
-		r.Err = fmt.Errorf("unexpected apt output %q", truncate(strings.TrimSpace(out), 120))
-		return r
-	}
-	r.Packages = n
-	r.Outdated = n > 0
+	r.Manager = st.Manager
+	r.Packages = st.Count()
+	r.Reboot = st.Reboot
+	r.Outdated = st.Count() > 0
+
 	switch {
-	case n == 0:
-		r.Action = "up to date"
+	case st.Count() == 0:
+		r.Action = st.Manager + ": up to date"
 	case u.DryRun:
-		r.Action = fmt.Sprintf("would upgrade %d package(s)", n)
+		r.Action = fmt.Sprintf("%s: would upgrade %d package(s): %s",
+			st.Manager, st.Count(), st.Summary(6))
 	default:
-		if _, err := u.Client.ExecInGuest(ctx, g.VMID, "sh", "-lc",
-			"DEBIAN_FRONTEND=noninteractive apt-get -y -o Dpkg::Options::=--force-confold dist-upgrade"); err != nil {
+		if err := backend.Upgrade(ctx, inside); err != nil {
 			r.Err = fmt.Errorf("upgrading: %w", err)
 			return r
 		}
-		r.Action = fmt.Sprintf("upgraded %d package(s)", n)
+		r.Action = fmt.Sprintf("%s: upgraded %d package(s)", st.Manager, st.Count())
+		if st.Reboot == pkgmgr.Yes {
+			r.Action += "; reboot required"
+		}
 	}
 	return r
-}
-
-func lastLine(s string) string {
-	lines := strings.Split(strings.TrimRight(s, "\n"), "\n")
-	return lines[len(lines)-1]
 }

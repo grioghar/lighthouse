@@ -40,6 +40,7 @@ nav:
    - 'Usage overview': 'usage-overview.md'
    - 'Arguments': 'arguments.md'
    - 'Notifications': 'notifications.md'
+   - 'Fleet updates': 'fleet-updates.md'
    - 'Container selection': 'container-selection.md'
    - 'Private registries': 'private-registries.md'
    - 'Linked containers': 'linked-containers.md'

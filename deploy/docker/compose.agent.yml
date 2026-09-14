@@ -1,0 +1,52 @@
+# Lighthouse agent under Docker.
+#
+# Two deployments are shown. The first watches only Docker containers and needs
+# nothing but the socket. The second also watches a Proxmox node, which needs
+# ssh -- pct and pvesh exist only on the node, so the commands have to land
+# there even though the process lives here.
+services:
+  # Containers only. Works anywhere Docker does.
+  lighthouse:
+    build:
+      context: ../..
+      dockerfile: dockerfiles/Dockerfile.agent
+    image: lighthouse-agent:latest
+    container_name: lighthouse
+    restart: unless-stopped
+    environment:
+      # Cron schedules are read in this zone. Getting it wrong runs the nightly
+      # check at the wrong hour and is easy to miss.
+      TZ: America/Chicago
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command:
+      - agent
+      - --schedule=0 0 4 * * *
+      # No --apply: report only. Add it once you trust the reports.
+
+  # Docker plus a Proxmox node.
+  lighthouse-fleet:
+    build:
+      context: ../..
+      dockerfile: dockerfiles/Dockerfile.agent
+    image: lighthouse-agent:latest
+    container_name: lighthouse-fleet
+    restart: unless-stopped
+    profiles: ["fleet"]
+    environment:
+      TZ: America/Chicago
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Read-only key with no passphrase. BatchMode refuses to prompt, so a
+      # passphrase-protected key cannot be used unattended.
+      - ./ssh/id_ed25519:/root/.ssh/id_ed25519:ro
+      # Without this the very first connection fails host key verification and
+      # there is nobody to answer the prompt. Seed it with:
+      #   ssh-keyscan <node> > deploy/docker/ssh/known_hosts
+      - ./ssh/known_hosts:/root/.ssh/known_hosts:ro
+    command:
+      - agent
+      - --schedule=0 0 4 * * *
+      - --node=pve1
+      - --ssh-host=root@192.168.1.10
+      - --ssh-key=/root/.ssh/id_ed25519
